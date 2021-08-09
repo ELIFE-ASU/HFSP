@@ -1,7 +1,22 @@
 name = "HFSP"
 authors = ["Douglas G. Moore"]
-[compat]
-julia = "1.6.0"
-DrWatson = "2.1.0"
+
 [deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
+DynamicPolynomials = "7c1d4256-1411-5781-91ec-d7bc3513ac07"
+FixedPolynomials = "3dd14ad9-0029-526e-86e9-8aa0bdd2ab0d"
+GaloisFields = "8d0d7f98-d412-5cd4-8397-071c807280aa"
+GraphPlot = "a2cc645c-3eea-5389-862e-a155d0052231"
+LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
+Memoize = "c03570c3-d221-55d1-a50c-7939bbd78826"
+MetaGraphs = "626554b9-1ddb-594c-aa3c-2596fe9399a5"
+MultivariatePolynomials = "102ac46a-7ee4-5c85-9060-abc95bfdeaa3"
+OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
+Queryverse = "612083be-0b0f-5412-89c1-4e7c75506a58"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TypedPolynomials = "afbbf031-7a57-5f58-a1b9-b774a0fad08d"
+
+[compat]
+DrWatson = "2.1.0"
+julia = "1.6.0"

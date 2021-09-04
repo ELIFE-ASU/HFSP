@@ -1,21 +1,3 @@
-using Base.Iterators
-using Combinatorics
-using GaloisFields
-using LinearAlgebra
-using Random
-using StaticArrays
-using Memoize
-using Queryverse
-
-include("vars.jl")
-
-const F₂ = GaloisFields.PrimeField{Int8,2}
-
-Base.conj(x::F₂) = F(x)
-Base.abs(x::F₂) = F(x)
-Base.isless(x::F₂, y::F₂) = isless(x.n, y.n)
-Base.convert(T::Type{<:Real}, x::F₂) = convert(T, x.n)
-
 struct StateSpace{N, M}
     StateSpace{N}() where N = new{N, 2^N}()
 end
@@ -80,7 +62,7 @@ end
 rho(T::Type{<:GF.AbstractExtensionField}) = T[rho(T, i) for i in 0:nvariables(T)]
 
 abstract type CompletePolynomial{T<:GF.AbstractExtensionField} end
- 
+
 function CompletePolynomial(T::Type{<:GF.AbstractExtensionField}, coeff::AbstractArray{F₂})
     dot(coeff, sigma(T))
 end
@@ -92,9 +74,9 @@ abstract type SymmetricPolynomial{T<:GF.AbstractExtensionField} end
 function SymmetricPolynomial(T::Type{<:GF.AbstractExtensionField}, coeff::AbstractArray{F₂})
     dot(coeff, rho(T))
 end
- 
+
 Base.rand(::Type{SymmetricPolynomial{T}}) where T = SymmetricPolynomial(T, rand(F, nvariables(T) + 1))
- 
+
 abstract type MajorityRule{T<:GF.AbstractExtensionField} end
 
 struct StrongMajorityRule{T} <: MajorityRule{T}
@@ -159,7 +141,7 @@ nvariables(::T) where {T <: GF.AbstractGaloisField} = depth(T)
 nvariables(r::RandomChoice{T}) where T = depth(T)
 
 project(r::RandomChoice) = RandomChoice(r.p, project(r.f), project(r.g))
- 
+
 negate(p::GF.AbstractExtensionField) = one(p) + p
 
 space(::T) where {T <: GF.AbstractExtensionField} = space(T)

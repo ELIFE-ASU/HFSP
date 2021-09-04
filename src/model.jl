@@ -1,11 +1,3 @@
-using DrWatson
-using LightGraphs
-using MetaGraphs
-using OffsetArrays
-using Statistics
-
-include("polynomials.jl")
-
 struct Model{G <: AbstractGraph, P <: OffsetVector{<:HFSPPolynomial}}
     g::G
     p::P
@@ -94,12 +86,6 @@ function ensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kw
     ensemble
 end
 
-function table(data::AbstractArray{T,3}) where T
-	l, m, n = size(data)
-	μ = vec(mean(Array{Float64}(data); dims=1));
-	DataTable(run=repeat(1:n; inner=m), timestep=repeat(1:m; outer=n), expression=μ)
-end
-
 polynomials(g::AbstractGraph) = g |> LightGraphs.degree |> maximum |> polynomials
 polynomials(n::Int) = first(extend(F, n))
 
@@ -114,7 +100,7 @@ end
 
 function model0(graph, G, H)
     n = nvariables(H)
-    
+
     g = CompletePolynomial(G, @SVector F₂[0, 1])
     h = CompletePolynomial(G, @SVector F₂[0, 1])
 
@@ -128,7 +114,7 @@ end
 
 function model1(graph, G, H)
     n = nvariables(H)
-    
+
     g = CompletePolynomial(G, @SVector F₂[0, 1])
     h = CompletePolynomial(G, @SVector F₂[0, 1])
 
@@ -173,41 +159,71 @@ function collate(ens::AbstractArray{F₂,3})
    DataTable(run=repeat(1:N; inner=M), timestep=repeat(1:M; outer=N), expression=vec(μ))
 end
 
+function collate(ens::AbstractArray{F₂,2})
+   μ = mean(Array{Int}(ens); dims=1)[1,:]
+   N = length(μ)
+   DataTable(timestep=1:N, expression=vec(μ))
+end
+
 function ensembleplot()
     @vlplot(
-        x=:timestep,
-        width=454,
-        height=347,
+        x = :timestep,
+        width = 454,
+        height = 347,
+    ) +
+    @vlplot(
+        {
+            :line,
+            clip = true,
+        },
+        y = {
+            :expression,
+            scale = {
+                domain = [0,1],
+            },
+        },
+        stroke = {
+            "run:o",
+            legend = false,
+        },
+        opacity = {
+            value = 0.1
+        },
+        color = {
+            value = "black"
+        }
+    ) +
+    @vlplot(
+        mark = {
+            :errorband,
+            extent = :ci
+        },
+        y = {
+            :expression,
+            title="expression level (fraction of cells)"
+        }
     ) +
     @vlplot(
         :line,
-        y=:expression,
-        stroke={"run:o", legend=false},
-        opacity={value=0.1},
-        color={value="black"}
-    ) +
-    @vlplot(
-        mark={:errorband, extent=:ci},
-        y={:expression, title="expression level (fraction of cells)"}
-    ) +
-    @vlplot(
-        :line,
-        y="mean(expression)"
+        y = "mean(expression)"
     )
 end
 
 function runplot()
     @vlplot(
-        x=:timestep,
-        width=454,
-        height=347,
+        x = :timestep,
+        width = 454,
+        height = 347,
     ) +
     @vlplot(
         :line,
-        y=:expression,
-        stroke={"run:o", legend=false}
+        y = :expression,
+        stroke = {
+            "run:o",
+            legend=false,
+        }
     )
 end
 
 ensembleplot(ens::AbstractArray{F₂,3}) = collate(ens) |> ensembleplot()
-runplot(ens::AbstractArray{F₂,3}) = collate(ens) |> runplot()
+runplot(ens::AbstractArray{F₂,2}) = collate(ens) |> runplot()

@@ -1,4 +1,4 @@
-struct Model{G <: AbstractGraph, P <: OffsetVector{<:HFSPPolynomial}}
+mutable struct Model{G <: AbstractGraph, P <: OffsetVector{<:HFSPPolynomial}}
     g::G
     p::P
     function Model(g::AbstractGraph, p::OffsetVector{HFSPPolynomial})
@@ -25,6 +25,8 @@ inputspace(m::Model) = StateSpace(ninputs(m))
 space(m::Model) = StateSpace(length(m))
 maxneighbors(m::Model) = maximum(LightGraphs.degree(m.g))
 
+Base.copy(m::Model) = Model(copy(m.g), deepcopy(m.p))
+
 function (m::Model)(inputs::AbstractVector{F₂}, state::AbstractVector{F₂})
     result = similar(state)
     neighborhood = zeros(F₂, maxneighbors(m))
@@ -36,6 +38,32 @@ function (m::Model)(inputs::AbstractVector{F₂}, state::AbstractVector{F₂})
         result[i] = p(inputs, state[i:i], neighborhood)
     end
     result
+end
+
+function update!(dst::AbstractVector{F₂}, m::Model, input::AbstractVector{<:AbstractVector{F₂}}, n::Int)
+    @views for t in 1:n
+        i = mod(t, length(input))
+        dst[:] = m(input[i], dst)
+    end
+    dst
+end
+
+function update!(dst::AbstractVector{F₂}, m::Model, input::Function, n::Int)
+    @views for t in 1:n
+        dst[:] = m(input(t), dst)
+    end
+    dst
+end
+
+function update!(dst::AbstractVector{F₂}, m::Model, input::AbstractVector{F₂}, n::Int)
+    @views for t in 1:n
+        dst[:] = m(input, dst)
+    end
+    dst
+end
+
+function update(m::Model, init, args...; kwargs...)
+    update!(copy(init), m, args...; kwargs...)
 end
 
 function trajectory!(dst::AbstractMatrix{F₂}, m::Model, input::AbstractVector{<:AbstractVector{F₂}})
@@ -72,7 +100,7 @@ end
 function ensemble(m::Model, input, t, n, args...; kwargs...)
     ensemble = Array{F₂}(undef, length(m), t, n)
     @views for i in 1:n
-        ensemble[:,1,i] = rand(F₂, length(m))
+        ensemble[:,1,i] = rand(F, length(m))
         trajectory!(ensemble[:,:,i], m, input, args...; kwargs...)
     end
     ensemble
@@ -82,6 +110,24 @@ function ensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kw
     ensemble = Array{F₂}(undef, length(m), t, n)
     @views for i in 1:n
         trajectory!(ensemble[:,:,i], m, init, input, args...; kwargs...)
+    end
+    ensemble
+end
+
+function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
+    ensemble = Array{F₂}(undef, length(m), n)
+    @views for i in 1:n
+        ensemble[:,i] = rand(F, length(m))
+        update!(ensemble[:,i], m, t, args...; kwargs...)
+    end
+    ensemble
+end
+
+function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
+    ensemble = Array{F₂}(undef, length(m), n)
+    @views for i in 1:n
+        ensemble[:,i] = init
+        update!(ensemble[:,i], m, input, t, args...; kwargs...)
     end
     ensemble
 end
@@ -98,13 +144,13 @@ function setup(filename::AbstractString = datadir("exp_pro", "sam.jld2"))
     graph, G, H
 end
 
-function model0(graph, G, H)
+function model0(graph, G, H; p=0.01)
     n = nvariables(H)
 
     g = CompletePolynomial(G, @SVector F₂[0, 1])
     h = CompletePolynomial(G, @SVector F₂[0, 1])
 
-    f00 = RandomChoice(0.01, H(1), H(0))
+    f00 = RandomChoice(p, H(1), H(0))
     f01 = H(1)
     f10 = H(0)
     f11 = H(1)
@@ -112,13 +158,13 @@ function model0(graph, G, H)
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
 
-function model1(graph, G, H)
+function model1(graph, G, H; p=0.01)
     n = nvariables(H)
 
     g = CompletePolynomial(G, @SVector F₂[0, 1])
     h = CompletePolynomial(G, @SVector F₂[0, 1])
 
-    f00 = RandomChoice(0.01, H(1), WeakMajorityRule{H}())
+    f00 = RandomChoice(p, H(1), WeakMajorityRule{H}())
     f01 = H(1)
     f10 = H(0)
     f11 = H(1)
@@ -126,13 +172,13 @@ function model1(graph, G, H)
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
 
-function model2(graph, G, H)
+function model2(graph, G, H; p = 0.01)
     n = nvariables(H)
 
     g = CompletePolynomial(G, @SVector F₂[0, 1])
     h = CompletePolynomial(G, @SVector F₂[0, 1])
 
-    f00 = RandomChoice(0.1, H(1), WeakMajorityRule{H}())
+    f00 = RandomChoice(p, H(1), WeakMajorityRule{H}())
     f01 = H(1)
     f10 = WeakMajorityRule{H}()
     f11 = H(1)
@@ -140,15 +186,15 @@ function model2(graph, G, H)
     Model(graph, HSFPPolynomial(g, h, (f00, f01, f10, f11)))
 end
 
-function model3(graph, G, H)
+function model3(graph, G, H; p=0.01, q=0.01)
     n = nvariables(H)
 
     g = CompletePolynomial(G, @SVector F₂[0, 1])
     h = CompletePolynomial(G, @SVector F₂[0, 1])
-    f00 = RandomChoice(0.01,  H(1), WeakMajorityRule{H}())
+    f00 = RandomChoice(p,  H(1), WeakMajorityRule{H}())
     f01 = H(1)
     f10 = H(0)
-    f11 = RandomChoice(0.01, H(0), H(1))
+    f11 = RandomChoice(q, H(0), H(1))
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end

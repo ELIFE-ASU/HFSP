@@ -3,7 +3,8 @@
 ## 2021-10-20
 
 Extracted the FT expression data into a CSV `data/exp_pro/2021-08-10_expression-levels/ft.csv`, and
-implemented a script to plot the data `scripts/ft-plot.jl`.
+implemented a script to plot the data `scripts/ft-plot.jl`. We then implemented a script to fit
+Model 3's parameters to the data, `scripts/ft-model-fit.jl`.
 
 ## 2021-08-10
 

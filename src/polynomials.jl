@@ -1,4 +1,4 @@
-struct StateSpace{N, M}
+mutable struct StateSpace{N, M}
     StateSpace{N}() where N = new{N, 2^N}()
 end
 StateSpace(n::Int) = StateSpace{n}()
@@ -63,7 +63,7 @@ rho(T::Type{<:GF.AbstractExtensionField}) = T[rho(T, i) for i in 0:nvariables(T)
 
 abstract type CompletePolynomial{T<:GF.AbstractExtensionField} end
 
-function CompletePolynomial(T::Type{<:GF.AbstractExtensionField}, coeff::AbstractArray{F₂})
+function CompletePolynomial(T::Type{<:GF.AbstractExtensionField}, coeff::AbstractVector{F₂})
     dot(coeff, sigma(T))
 end
 
@@ -79,7 +79,7 @@ Base.rand(::Type{SymmetricPolynomial{T}}) where T = SymmetricPolynomial(T, rand(
 
 abstract type MajorityRule{T<:GF.AbstractExtensionField} end
 
-struct StrongMajorityRule{T} <: MajorityRule{T}
+mutable struct StrongMajorityRule{T} <: MajorityRule{T}
     n::Int
     p::T
     function StrongMajorityRule{T}(n::Int) where {T <: GF.AbstractExtensionField}
@@ -99,7 +99,9 @@ struct StrongMajorityRule{T} <: MajorityRule{T}
 end
 StrongMajorityRule{T}() where {T <: GF.AbstractExtensionField} = StrongMajorityRule{T}(nvariables(T))
 
-struct WeakMajorityRule{T} <: MajorityRule{T}
+Base.copy(p::StrongMajorityRule) = StrongMajorityRule(p.n, copy(p.p))
+
+mutable struct WeakMajorityRule{T} <: MajorityRule{T}
     n::Int
     p::T
     function WeakMajorityRule{T}(n::Int) where {T <: GF.AbstractExtensionField}
@@ -121,9 +123,11 @@ WeakMajorityRule{T}() where {T <: GF.AbstractExtensionField} = WeakMajorityRule{
 
 (p::MajorityRule)(args...) = p.p(args...)
 
+Base.copy(p::WeakMajorityRule) = WeakMajorityRule(p.n, copy(p.p))
+
 project(p::T) where {T <: MajorityRule} = T(p.n - 1)
 
-struct RandomChoice{F, G}
+mutable struct RandomChoice{F, G}
     p::Float64
     f::F
     g::G
@@ -135,6 +139,8 @@ end
 
 (r::RandomChoice)(args...) = r()(args...)
 (r::RandomChoice)() = rand() < r.p ? r.f : r.g
+
+Base.copy(p::RandomChoice) = RandomChoice(p.p, copy(f), copy(g))
 
 nvariables(T::Type{<:GF.AbstractGaloisField}) = depth(T)
 nvariables(::T) where {T <: GF.AbstractGaloisField} = depth(T)
@@ -160,7 +166,7 @@ function table(p::GF.AbstractExtensionField; name = Symbol(repr(p)))
     DataTable(table)
 end
 
-struct HFSPPolynomial{G, H, T}
+mutable struct HFSPPolynomial{G, H, T}
     g::G
     h::H
     f::T
@@ -177,6 +183,8 @@ function (p::HFSPPolynomial)(garg, harg)
 end
 
 (p::HFSPPolynomial)(garg, harg, farg) = p(garg, harg)(farg)
+
+Base.copy(p::HFSPPolynomial) = HFSPPolynomial(copy(p.g), copy(p.h), copy(p.f))
 
 project(p::HFSPPolynomial) = HFSPPolynomial(p.g, p.h, project.(p.f))
 

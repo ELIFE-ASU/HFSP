@@ -2,7 +2,7 @@ __precompile__(false)
 module HFSP
 
 export Model, ninputs, inputspace, space, maxneighbors
-export trajectory!, trajectory, ensemble
+export update!, update, trajectory!, trajectory, ensemble, finalensemble
 export setup
 export model0, model1, model2, model3
 export collate, ensembleplot, runplot

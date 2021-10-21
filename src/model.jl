@@ -211,9 +211,10 @@ function collate(ens::AbstractArray{F₂,2})
    DataTable(timestep=1:N, expression=vec(μ))
 end
 
-function ensembleplot()
+function ensembleplot(args...; title="Ensemble", kwargs...)
     @vlplot(
         x = :timestep,
+        title = title,
         width = 454,
         height = 347,
     ) +
@@ -228,7 +229,7 @@ function ensembleplot()
                 domain = [0,1],
             },
         },
-        stroke = {
+        detail = {
             "run:o",
             legend = false,
         },
@@ -242,22 +243,32 @@ function ensembleplot()
     @vlplot(
         mark = {
             :errorband,
-            extent = :ci
+            extent = :stddev
         },
         y = {
             :expression,
             title="expression level (fraction of cells)"
+        },
+        color = {
+            value = "red"
         }
     ) +
     @vlplot(
         :line,
-        y = "mean(expression)"
+        y = "mean(expression)",
+        strokeWidth = {
+            value = 3,
+        },
+        color = {
+            value = "black"
+        }
     )
 end
 
-function runplot()
+function runplot(args...; title = "Trajectory", kwargs...)
     @vlplot(
         x = :timestep,
+        title = title,
         width = 454,
         height = 347,
     ) +
@@ -271,5 +282,5 @@ function runplot()
     )
 end
 
-ensembleplot(ens::AbstractArray{F₂,3}) = collate(ens) |> ensembleplot()
-runplot(ens::AbstractArray{F₂,2}) = collate(ens) |> runplot()
+ensembleplot(ens::AbstractArray{F₂,3}, args...; kwargs...) = collate(ens) |> ensembleplot(args...; kwargs...)
+runplot(ens::AbstractArray{F₂,2}, args...; kwargs...) = collate(ens) |> runplot(args...; kwargs...)

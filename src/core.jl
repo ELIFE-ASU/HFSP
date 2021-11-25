@@ -14,5 +14,6 @@ using Statistics
 import MultivariatePolynomials, DynamicPolynomials
 
 include("vars.jl")
+include("statespace.jl")
 include("polynomials.jl")
 include("model.jl")

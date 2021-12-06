@@ -2,8 +2,8 @@ mutable struct Model{G <: AbstractGraph, P <: OffsetVector{<:HFSPPolynomial}}
     g::G
     p::P
     function Model(g::AbstractGraph, p::OffsetVector{HFSPPolynomial})
-        N, M = maximum(LightGraphs.degree(g)), last(nvariables(last(p)))
-        if N != M
+        N, M = maxdegree(g), last(DP.nvariables(last(p)))
+        if !iszero(M) && N != M
             error("provided polynomial must have as many variables as the graph's largest degree: expected $N, got $M")
         end
         new{typeof(g), typeof(p)}(g, p)
@@ -12,30 +12,31 @@ end
 
 function Model(g::AbstractGraph, p::HFSPPolynomial)
     ps = HFSPPolynomial[p]
-    _, n = nvariables(p)
-    for i in 1:n
-        push!(ps, project(ps[i]))
+    n = max(maxdegree(g), last(DP.nvariables(p)))
+    for i in 2:n
+        push!(ps, project(ps[i-1]))
     end
-    Model(g, OffsetVector(reverse(ps), 0:n))
+    Model(g, OffsetVector(reverse(ps), 1:n))
 end
 
 Base.length(m::Model) = nv(m.g)
 ninputs(m::Model) = nvariables(last(m.p).g)
 inputspace(m::Model) = StateSpace(ninputs(m))
 space(m::Model) = StateSpace(length(m))
-maxneighbors(m::Model) = maximum(LightGraphs.degree(m.g))
+maxdegree(g::LightGraphs.AbstractGraph) = maximum(LightGraphs.degree(g))
+maxdegree(m::Model) = maxdegree(m.g)
 
 Base.copy(m::Model) = Model(copy(m.g), deepcopy(m.p))
 
 function (m::Model)(inputs::AbstractVector{F₂}, state::AbstractVector{F₂})
     result = similar(state)
-    neighborhood = zeros(F₂, maxneighbors(m))
+    neighborhood = zeros(F₂, maxdegree(m))
     for i in eachindex(state)
         ns = neighbors(m.g, i)
         p = m.p[length(ns)]
         fill!(neighborhood, 0)
         copyto!(neighborhood, state[ns])
-        result[i] = p(inputs, state[i:i], neighborhood)
+        result[i] = apply(p, inputs, state[i:i], neighborhood)
     end
     result
 end
@@ -132,69 +133,64 @@ function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args..
     ensemble
 end
 
-polynomials(g::AbstractGraph) = g |> LightGraphs.degree |> maximum |> polynomials
-polynomials(n::Int) = first(extend(F, n))
+#  polynomials(g::AbstractGraph) = g |> LightGraphs.degree |> maximum |> polynomials
+#  polynomials(n::Int) = first(extend(F, n))
 
 function setup(filename::AbstractString = datadir("exp_pro", "sam.jld2"))
     @unpack graph = load(filename)
-
-    G = polynomials(1)
-    H = polynomials(graph)
-
-    graph, G, H
+    graph
 end
 
-function model0(graph, G, H; p=0.01)
-    n = nvariables(H)
+function model0(graph; p=0.01)
+    g = CompletePolynomial(@SVector F₂[0, 1])
+    h = CompletePolynomial(@SVector F₂[0, 1])
 
-    g = CompletePolynomial(G, @SVector F₂[0, 1])
-    h = CompletePolynomial(G, @SVector F₂[0, 1])
-
-    f00 = RandomChoice(p, H(1), H(0))
-    f01 = H(1)
-    f10 = H(0)
-    f11 = H(1)
+    f00 = RandomChoice(p, 1, 0)
+    f01 = 1
+    f10 = 0
+    f11 = 1
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
 
-function model1(graph, G, H; p=0.01)
-    n = nvariables(H)
+function model1(graph; p=0.01)
+    n = maxdegree(graph)
 
-    g = CompletePolynomial(G, @SVector F₂[0, 1])
-    h = CompletePolynomial(G, @SVector F₂[0, 1])
+    g = CompletePolynomial(@SVector F₂[0, 1])
+    h = CompletePolynomial(@SVector F₂[0, 1])
 
-    f00 = RandomChoice(p, H(1), WeakMajorityRule{H}())
-    f01 = H(1)
-    f10 = H(0)
-    f11 = H(1)
+    f00 = RandomChoice(p, 1, WeakMajorityRule{n}())
+    f01 = 1
+    f10 = 0
+    f11 = 1
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
 
-function model2(graph, G, H; p = 0.01)
-    n = nvariables(H)
+function model2(graph; p = 0.01)
+    n = maxdegree(graph)
 
-    g = CompletePolynomial(G, @SVector F₂[0, 1])
-    h = CompletePolynomial(G, @SVector F₂[0, 1])
+    g = CompletePolynomial(@SVector F₂[0, 1])
+    h = CompletePolynomial(@SVector F₂[0, 1])
 
-    f00 = RandomChoice(p, H(1), WeakMajorityRule{H}())
-    f01 = H(1)
-    f10 = WeakMajorityRule{H}()
-    f11 = H(1)
+    f00 = RandomChoice(p, 1, WeakMajorityRule{n}())
+    f01 = 1
+    f10 = WeakMajorityRule{n}()
+    f11 = 1
 
-    Model(graph, HSFPPolynomial(g, h, (f00, f01, f10, f11)))
+    Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
 
-function model3(graph, G, H; p=0.01, q=0.01)
-    n = nvariables(H)
+function model3(graph; p=0.01, q=0.01)
+    n = maxdegree(graph)
 
-    g = CompletePolynomial(G, @SVector F₂[0, 1])
-    h = CompletePolynomial(G, @SVector F₂[0, 1])
-    f00 = RandomChoice(p,  H(1), WeakMajorityRule{H}())
-    f01 = H(1)
-    f10 = H(0)
-    f11 = RandomChoice(q, H(0), H(1))
+    g = CompletePolynomial(@SVector F₂[0, 1])
+    h = CompletePolynomial(@SVector F₂[0, 1])
+
+    f00 = RandomChoice(p, 1, WeakMajorityRule{n}())
+    f01 = 1
+    f10 = 0
+    f11 = RandomChoice(q, 0, 1)
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end

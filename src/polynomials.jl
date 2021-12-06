@@ -1,84 +1,127 @@
-project(p::T) where {T <: GF.AbstractExtensionField} = T(p.coeffs[1])
+const Polynomial = DP.Polynomial{true, F₂}
 
-sigma(T::Type{<:GF.PrimeField}) = [T(1)]
+function apply(p::Polynomial)
+    if iszero(DP.nvariables(p))
+        isempty(p.a) ? zero(F) : p.a[1]
+    else
+        p(StaticArrays.fill(0, DP.nvariables(p)))
+    end
+end
+function apply(p::Polynomial, args::AbstractVector{F₂})
+    δ = DP.nvariables(p) - length(args)
+    if δ < zero(δ)
+        p(args[1:end+δ])
+    elseif δ > zero(δ)
+        p([args; StaticArrays.fill(0,δ)])
+    else
+        p(args)
+    end
+end
+apply(p::Polynomial, args::F₂...) = apply(p, collect(args))
+apply(p::Polynomial, args::T...) where {T <: Integer} = apply(p, collect(F₂, args))
+apply(p::F₂) = p
+apply(p::F₂, args...) = apply(p)
+apply(p::Integer) = convert(F₂, p)
+apply(p::Integer, args...) = apply(p)
 
-function sigma(T::Type{<:GF.AbstractExtensionField})
-    gens = generators(T)
-    [T(1); map(prod, combinations(gens))]
+project(p::Polynomial) = subs(p, DP.variables(p)[end] => 0)
+project(p::Real) = p
+project(p::F₂) = p
+
+DP.nvariables(::Real) = 0
+DP.nvariables(::F₂) = 0
+
+@inline function generators(n::Int)
+    if n == 0
+        DP.PolyVar{true}[]
+    else
+        DP.@polyvar x[1:n]
+        x
+    end
 end
 
-function rho(T::Type{<:GF.AbstractExtensionField}, i::Int)
-    gens = generators(T)
+function sigma(gens::Vector{DP.PolyVar{true}})
+    if isempty(gens)
+        Polynomial[1]
+    else
+        Polynomial[1; map(prod, combinations(gens))]
+    end
+end
+
+function rho(gens::Vector{DP.PolyVar{true}}, i::Int)
     sum(Iterators.map(prod, combinations(gens, i)))
 end
 
-rho(T::Type{<:GF.AbstractExtensionField}) = T[rho(T, i) for i in 0:nvariables(T)]
+rho(gens::Vector{DP.PolyVar{true}}) = Polynomial[rho(gens, i) for i in 0:length(gens)]
 
-abstract type CompletePolynomial{T<:GF.AbstractExtensionField} end
+abstract type CompletePolynomial{N} end
 
-function CompletePolynomial(T::Type{<:GF.AbstractExtensionField}, coeff::AbstractVector{F₂})
-    dot(coeff, sigma(T))
+function CompletePolynomial(coeff::AbstractVector{F₂})
+    N = floor(Int, log2(length(coeff)))
+    gens = generators(N)
+    dot(coeff, sigma(gens))
 end
 
-Base.rand(::Type{CompletePolynomial{T}}) where T = rand(T)
+Base.rand(::Type{CompletePolynomial{N}}) where N = CompletePolynomial(rand(F₂, 2^N))
 
-abstract type SymmetricPolynomial{T<:GF.AbstractExtensionField} end
+abstract type SymmetricPolynomial{N} end
 
-function SymmetricPolynomial(T::Type{<:GF.AbstractExtensionField}, coeff::AbstractArray{F₂})
-    dot(coeff, rho(T))
+function SymmetricPolynomial(coeff::AbstractArray{F₂})
+    gens = generators(length(coeff) - 1)
+    dot(coeff, rho(gens))
 end
 
-Base.rand(::Type{SymmetricPolynomial{T}}) where T = SymmetricPolynomial(T, rand(F, nvariables(T) + 1))
+Base.rand(::Type{SymmetricPolynomial{N}}) where N = SymmetricPolynomial(rand(F₂, N + 1))
 
-abstract type MajorityRule{T<:GF.AbstractExtensionField} end
+abstract type MajorityRule{N} end
 
-mutable struct StrongMajorityRule{T} <: MajorityRule{T}
-    n::Int
-    p::T
-    function StrongMajorityRule{T}(n::Int) where {T <: GF.AbstractExtensionField}
-        coeff = Dict(
-            0 => F₂[0, 0, 0, 0, 0, 0, 0, 0, 0],
-            1 => F₂[0, 1, 0, 0, 0, 0, 0, 0, 0],
-            2 => F₂[0, 0, 1, 0, 0, 0, 0, 0, 0],
-            3 => F₂[0, 0, 1, 0, 0, 0, 0, 0, 0],
-            4 => F₂[0, 0, 0, 1, 1, 0, 0, 0, 0],
-            5 => F₂[0, 0, 0, 1, 1, 0, 0, 0, 0],
-            6 => F₂[0, 0, 0, 0, 1, 0, 0, 0, 0],
-            7 => F₂[0, 0, 0, 0, 1, 0, 0, 0, 0],
-            8 => F₂[0, 0, 0, 0, 0, 1, 1, 1, 1],
-        )
-        new{T}(n, SymmetricPolynomial(T, coeff[n]))
-    end
+apply(p::MajorityRule, args...) = apply(p.p, args...)
+
+mutable struct StrongMajorityRule{N} <: MajorityRule{N}
+    p::Polynomial
 end
-StrongMajorityRule{T}() where {T <: GF.AbstractExtensionField} = StrongMajorityRule{T}(nvariables(T))
-
-Base.copy(p::StrongMajorityRule) = StrongMajorityRule(p.n, copy(p.p))
-
-mutable struct WeakMajorityRule{T} <: MajorityRule{T}
-    n::Int
-    p::T
-    function WeakMajorityRule{T}(n::Int) where {T <: GF.AbstractExtensionField}
-        coeff = Dict(
-            0 => F₂[0, 0, 0, 0, 0, 0, 0, 0, 0],
-            1 => F₂[0, 1, 0, 0, 0, 0, 0, 0, 0],
-            2 => F₂[0, 1, 1, 0, 0, 0, 0, 0, 0],
-            3 => F₂[0, 0, 1, 0, 0, 0, 0, 0, 0],
-            4 => F₂[0, 0, 1, 0, 1, 0, 0, 0, 0],
-            5 => F₂[0, 0, 0, 1, 1, 0, 0, 0, 0],
-            6 => F₂[0, 0, 0, 1, 1, 0, 0, 0, 0],
-            7 => F₂[0, 0, 0, 0, 1, 0, 0, 0, 0],
-            8 => F₂[0, 0, 0, 0, 1, 0, 0, 0, 1],
-        )
-        new{T}(n, SymmetricPolynomial(T, coeff[n]))
-    end
+function StrongMajorityRule{N}() where N
+    (N < 1 || N > 8) && error("StrongMajorityRule{N} is only defined for 1 ≤ N ≤ 8")
+    coeff = Dict(
+        1 => F₂[0, 1],
+        2 => F₂[0, 0, 1],
+        3 => F₂[0, 0, 1, 0],
+        4 => F₂[0, 0, 0, 1, 1],
+        5 => F₂[0, 0, 0, 1, 1, 0],
+        6 => F₂[0, 0, 0, 0, 1, 0, 0],
+        7 => F₂[0, 0, 0, 0, 1, 0, 0, 0],
+        8 => F₂[0, 0, 0, 0, 0, 1, 1, 1, 1],
+    )
+    StrongMajorityRule{N}(SymmetricPolynomial(coeff[N]))
 end
-WeakMajorityRule{T}() where {T <: GF.AbstractExtensionField} = WeakMajorityRule{T}(nvariables(T))
+DP.nvariables(::StrongMajorityRule{N}) where N = N
+DP.nvariables(::Type{StrongMajorityRule{N}}) where N = N
+project(::StrongMajorityRule{N}) where N = StrongMajorityRule{N-1}()
 
-(p::MajorityRule)(args...) = p.p(args...)
+Base.copy(p::StrongMajorityRule) = StrongMajorityRule(copy(p))
 
-Base.copy(p::WeakMajorityRule) = WeakMajorityRule(p.n, copy(p.p))
+mutable struct WeakMajorityRule{N} <: MajorityRule{N}
+    p::Polynomial
+end
+function WeakMajorityRule{N}() where N
+    (N < 1 || N > 8) && error("WeakMajorityRule{N} is only defined for 1 ≤ N ≤ 8")
+    coeff = Dict(
+        1 => F₂[0, 1],
+        2 => F₂[0, 1, 1],
+        3 => F₂[0, 0, 1, 0],
+        4 => F₂[0, 0, 1, 0, 1],
+        5 => F₂[0, 0, 0, 1, 1, 0],
+        6 => F₂[0, 0, 0, 1, 1, 0, 0],
+        7 => F₂[0, 0, 0, 0, 1, 0, 0, 0],
+        8 => F₂[0, 0, 0, 0, 1, 0, 0, 0, 1],
+    )
+    WeakMajorityRule{N}(SymmetricPolynomial(coeff[N]))
+end
+DP.nvariables(::WeakMajorityRule{N}) where N = N
+DP.nvariables(::Type{WeakMajorityRule{N}}) where N = N
+project(::WeakMajorityRule{N}) where N = WeakMajorityRule{N-1}()
 
-project(p::T) where {T <: MajorityRule} = T(p.n - 1)
+Base.copy(p::WeakMajorityRule) = WeakMajorityRule(copy(p.p))
 
 mutable struct RandomChoice{F, G}
     p::Float64
@@ -90,30 +133,27 @@ mutable struct RandomChoice{F, G}
     end
 end
 
-(r::RandomChoice)(args...) = r()(args...)
-(r::RandomChoice)() = rand() < r.p ? r.f : r.g
+apply(r::RandomChoice) = rand() < r.p ? r.f : r.g
+apply(r::RandomChoice, args...) = apply(apply(r), args...)
+
+DP.nvariables(r::RandomChoice) = max(DP.nvariables(r.f), DP.nvariables(r.g))
 
 Base.copy(p::RandomChoice) = RandomChoice(p.p, copy(f), copy(g))
 
-nvariables(T::Type{<:GF.AbstractGaloisField}) = depth(T)
-nvariables(::T) where {T <: GF.AbstractGaloisField} = depth(T)
-nvariables(r::RandomChoice{T}) where T = depth(T)
-
 project(r::RandomChoice) = RandomChoice(r.p, project(r.f), project(r.g))
 
-negate(p::GF.AbstractExtensionField) = one(p) + p
+negate(p::Polynomial) = one(p) + p
 
-space(::T) where {T <: GF.AbstractExtensionField} = space(T)
-space(T::Type{<:GF.AbstractExtensionField}) = StateSpace(nvariables(T))
+space(p::Polynomial) = StateSpace(DP.nvariables(p))
 
 tablecols(v) = tuple(map(Symbol ∘ repr, v)...)
-tablecols(p::GF.AbstractExtensionField) = tablecols(generators(p))
+tablecols(p::Polynomial) = tablecols(DP.variables(p))
 
-function table(p::GF.AbstractExtensionField; name = Symbol(repr(p)))
+function table(p::Polynomial; name = Symbol(repr(p)))
     cols = tuple(tablecols(p)..., name)
     table = NamedTuple{cols, NTuple{length(cols), F₂}}[]
     for state in space(p)
-        f = p(state)
+        f = p(state...)
         push!(table, NamedTuple{cols}(tuple(state..., f)))
     end
     DataTable(table)
@@ -125,7 +165,7 @@ mutable struct HFSPPolynomial{G, H, T}
     f::T
 end
 
-function (p::HFSPPolynomial)(garg, harg)
+function apply(p::HFSPPolynomial, garg, harg)
     g = p.g(garg)
     h = p.h(harg)
     f = if iszero(g)
@@ -135,23 +175,23 @@ function (p::HFSPPolynomial)(garg, harg)
     end
 end
 
-(p::HFSPPolynomial)(garg, harg, farg) = p(garg, harg)(farg)
+apply(p::HFSPPolynomial, garg, harg, farg) = apply(apply(p, garg, harg), farg)
 
 Base.copy(p::HFSPPolynomial) = HFSPPolynomial(copy(p.g), copy(p.h), copy(p.f))
 
 project(p::HFSPPolynomial) = HFSPPolynomial(p.g, p.h, project.(p.f))
 
-nvariables(p::HFSPPolynomial) = nvariables(p.g), nvariables(p.f[1])
+DP.nvariables(p::HFSPPolynomial) = DP.nvariables(p.g), maximum(DP.nvariables.(p.f))
 
 tablecols(prefix, v) = tuple(map(Symbol ∘ (x -> prefix * x) ∘ repr, v)...)
-tablecols(prefix, p::GF.AbstractExtensionField) = tablecols(prefix, generators(p))
+tablecols(prefix, p::Polynomial) = tablecols(prefix, generators(p))
 tablecols(p::HFSPPolynomial) = (tablecols("g_", p.g)..., tablecols("h_", p.h)..., tablecols("f_", p.f[1])...)
 
 function table(p::HFSPPolynomial; name = Symbol("f(x)"))
     cols = (tablecols(p)..., name)
     table = NamedTuple{cols, NTuple{length(cols), F₂}}[]
     for (input, h, state) in product(space(p.g), space(p.h), space(p.f[1]))
-        f = p(input, h, state)
+        f = apply(p, input, h, state)
         push!(table, NamedTuple{cols}(tuple(input..., h..., state..., f)))
     end
     DataTable(table)

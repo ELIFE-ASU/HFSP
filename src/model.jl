@@ -124,18 +124,6 @@ function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args..
     ensemble
 end
 
-function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
-    ensemble = Array{F₂}(undef, length(m), n)
-    @views for i in 1:n
-        ensemble[:,i] = init
-        update!(ensemble[:,i], m, input, t, args...; kwargs...)
-    end
-    ensemble
-end
-
-#  polynomials(g::AbstractGraph) = g |> LightGraphs.degree |> maximum |> polynomials
-#  polynomials(n::Int) = first(extend(F, n))
-
 function setup(filename::AbstractString = datadir("exp_pro", "sam.jld2"))
     @unpack graph = load(filename)
     graph

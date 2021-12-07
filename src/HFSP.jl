@@ -1,4 +1,3 @@
-__precompile__(false)
 module HFSP
 
 export Model, ninputs, inputspace, space, maxneighbors

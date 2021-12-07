@@ -14,19 +14,17 @@ const PLOTFILE = plotsdir("2021-08-10_expression-levels.png")
 
 stderr(A::AbstractArray) = isempty(A) ? zero(Float64) : std(A) / sqrt(length(A))
 
-struct Config{G, S, T}
+struct Config{G}
     graph::G
-    G::S
-    H::T
     data::DataFrame
     function Config(; graphfile=DEFAULT_GRAPH, datafile=DEFAULT_DATA)
-        graph, G, H = setup(graphfile)
+        graph = setup(graphfile)
         data = loaddata(datafile)
-        new{typeof(graph), typeof(G), typeof(H)}(graph, G, H, data)
+        new{typeof(graph)}(graph, data)
     end
 end
 
-tomodel(config::Config, p, q) = model3(config.graph, config.G, config.H; p, q)
+tomodel(config::Config, p, q) = model3(config.graph; p, q)
 
 function loaddata(datafile, scaling=x -> x)
     df = load(datafile) |>
@@ -100,7 +98,7 @@ function setq!(model, q)
 end
 
 function jointloss(config::Config, n)
-    basemodel = model3(config.graph, config.G, config.H; p=0.0, q=0.0)
+    basemodel = tomodel(config, 0.0, 0.0)
     params -> begin
         model = copy(basemodel)
         setparams!(model, params...)
@@ -109,7 +107,7 @@ function jointloss(config::Config, n)
 end
 
 function coldloss(config::Config, n; q=0.0)
-    basemodel = model3(config.graph, config.G, config.H; p=0.0, q)
+    basemodel = tomodel(config, 0.0, q)
     params -> begin
         model = copy(basemodel)
         setp!(model, params...)
@@ -118,7 +116,7 @@ function coldloss(config::Config, n; q=0.0)
 end
 
 function warmloss(config::Config, n; p=0.0)
-    basemodel = model3(config.graph, config.G, config.H; p, q=0.0)
+    basemodel = tomodel(config, p, 0.0)
     params -> begin
         model = copy(basemodel)
         setq!(model, params...)

@@ -3,7 +3,7 @@ using Combinatorics
 using DrWatson
 using DynamicPolynomials
 using GaloisFields
-using LightGraphs
+using Graphs
 using LinearAlgebra
 using MetaGraphs
 using MultivariatePolynomials

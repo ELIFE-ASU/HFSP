@@ -23,7 +23,7 @@ Base.length(m::Model) = nv(m.g)
 ninputs(m::Model) = nvariables(last(m.p).g)
 inputspace(m::Model) = StateSpace(ninputs(m))
 space(m::Model) = StateSpace(length(m))
-maxdegree(g::LightGraphs.AbstractGraph) = maximum(LightGraphs.degree(g))
+maxdegree(g::AbstractGraph) = maximum(Graphs.degree(g))
 maxdegree(m::Model) = maxdegree(m.g)
 
 Base.copy(m::Model) = Model(copy(m.g), deepcopy(m.p))

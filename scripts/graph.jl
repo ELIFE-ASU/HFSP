@@ -1,5 +1,5 @@
 using DrWatson
-using LightGraphs
+using Graphs
 using MetaGraphs
 using Queryverse
 

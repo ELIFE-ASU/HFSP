@@ -1,17 +1,18 @@
 using Base.Iterators
 using Combinatorics
 using DrWatson
+using DynamicPolynomials
 using GaloisFields
 using LightGraphs
 using LinearAlgebra
 using MetaGraphs
+using MultivariatePolynomials
 using OffsetArrays
 using Queryverse
 using Random
 using StaticArrays
 using Statistics
 import MultivariatePolynomials as MP
-import DynamicPolynomials as DP
 
 include("vars.jl")
 include("statespace.jl")

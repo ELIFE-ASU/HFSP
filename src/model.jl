@@ -119,7 +119,7 @@ function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args..
     ensemble = Array{F₂}(undef, length(m), n)
     @views for i in 1:n
         ensemble[:,i] = rand(F, length(m))
-        update!(ensemble[:,i], m, t, args...; kwargs...)
+        update!(ensemble[:,i], m, input, t, args...; kwargs...)
     end
     ensemble
 end

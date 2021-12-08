@@ -36,7 +36,7 @@ function (m::Model)(inputs::AbstractVector{F₂}, state::AbstractVector{F₂})
         p = m.p[length(ns)]
         fill!(neighborhood, 0)
         copyto!(neighborhood, state[ns])
-        result[i] = apply(p, inputs, state[i:i], neighborhood)
+        result[i] = p(inputs, state[i:i], neighborhood)
     end
     result
 end
@@ -133,10 +133,10 @@ function model0(graph; p=0.01)
     g = CompletePolynomial(@SVector F₂[0, 1])
     h = CompletePolynomial(@SVector F₂[0, 1])
 
-    f00 = RandomChoice(p, 1, 0)
-    f01 = 1
-    f10 = 0
-    f11 = 1
+    f00 = RandomChoice(p, F₂(1), F₂(0))
+    f01 = F₂(1)
+    f10 = F₂(0)
+    f11 = F₂(1)
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
@@ -147,10 +147,10 @@ function model1(graph; p=0.01)
     g = CompletePolynomial(@SVector F₂[0, 1])
     h = CompletePolynomial(@SVector F₂[0, 1])
 
-    f00 = RandomChoice(p, 1, WeakMajorityRule{n}())
-    f01 = 1
-    f10 = 0
-    f11 = 1
+    f00 = RandomChoice(p, F₂(1), WeakMajorityRule{n}())
+    f01 = F₂(1)
+    f10 = F₂(0)
+    f11 = F₂(1)
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
@@ -161,10 +161,10 @@ function model2(graph; p = 0.01)
     g = CompletePolynomial(@SVector F₂[0, 1])
     h = CompletePolynomial(@SVector F₂[0, 1])
 
-    f00 = RandomChoice(p, 1, WeakMajorityRule{n}())
-    f01 = 1
+    f00 = RandomChoice(p, F₂(1), WeakMajorityRule{n}())
+    f01 = F₂(1)
     f10 = WeakMajorityRule{n}()
-    f11 = 1
+    f11 = F₂(1)
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end
@@ -175,10 +175,10 @@ function model3(graph; p=0.01, q=0.01)
     g = CompletePolynomial(@SVector F₂[0, 1])
     h = CompletePolynomial(@SVector F₂[0, 1])
 
-    f00 = RandomChoice(p, 1, WeakMajorityRule{n}())
-    f01 = 1
-    f10 = 0
-    f11 = RandomChoice(q, 0, 1)
+    f00 = RandomChoice(p, F₂(1), WeakMajorityRule{n}())
+    f01 = F₂(1)
+    f10 = F₂(0)
+    f11 = RandomChoice(q, F₂(0), F₂(1))
 
     Model(graph, HFSPPolynomial(g, h, (f00, f01, f10, f11)))
 end

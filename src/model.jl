@@ -1,7 +1,7 @@
-mutable struct Model{G <: AbstractGraph, P <: OffsetVector{<:HFSPPolynomial}}
+mutable struct Model{G <: AbstractGraph, P <: AbstractVector{HFSPPolynomial}}
     g::G
     p::P
-    function Model(g::AbstractGraph, p::OffsetVector{HFSPPolynomial})
+    function Model(g::AbstractGraph, p::AbstractVector{HFSPPolynomial})
         N, M = maxdegree(g), last(nvariables(last(p)))
         if !iszero(M) && N != M
             error("provided polynomial must have as many variables as the graph's largest degree: expected $N, got $M")
@@ -16,7 +16,7 @@ function Model(g::AbstractGraph, p::HFSPPolynomial)
     for i in 2:n
         push!(ps, project(ps[i-1]))
     end
-    Model(g, OffsetVector(reverse(ps), 1:n))
+    Model(g, reverse(ps))
 end
 
 Base.length(m::Model) = nv(m.g)

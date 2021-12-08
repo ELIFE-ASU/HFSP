@@ -8,7 +8,6 @@ using Graphs
 using LinearAlgebra
 using MetaGraphs
 using MultivariatePolynomials
-using OffsetArrays
 using Queryverse
 using Random
 using StaticArrays

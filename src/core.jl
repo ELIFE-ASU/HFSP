@@ -10,8 +10,8 @@ using Queryverse
 using Random
 using StaticArrays
 using Statistics
-import MultivariatePolynomials
-import DynamicPolynomials
+import MultivariatePolynomials as MP
+import DynamicPolynomials as DP
 
 include("vars.jl")
 include("statespace.jl")

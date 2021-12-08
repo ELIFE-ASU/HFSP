@@ -1,4 +1,5 @@
 using Base.Iterators
+using Base.Threads
 using Combinatorics
 using DrWatson
 using DynamicPolynomials

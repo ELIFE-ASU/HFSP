@@ -31,12 +31,12 @@ Base.copy(m::Model) = Model(copy(m.g), deepcopy(m.p))
 function (m::Model)(inputs::AbstractVector{F₂}, state::AbstractVector{F₂})
     result = similar(state)
     neighborhood = zeros(F₂, maxdegree(m))
-    for i in eachindex(state)
+    @threads for i in eachindex(state)
         ns = neighbors(m.g, i)
         p = m.p[length(ns)]
         fill!(neighborhood, 0)
         copyto!(neighborhood, state[ns])
-        result[i] = p(inputs, state[i:i], neighborhood)
+        @views result[i] = p(inputs, state[i:i], neighborhood)
     end
     result
 end
@@ -68,23 +68,23 @@ function update(m::Model, init, args...; kwargs...)
 end
 
 function trajectory!(dst::AbstractMatrix{F₂}, m::Model, input::AbstractVector{<:AbstractVector{F₂}})
-    @views for t in 1:size(dst,2)-1
+    for t in 1:size(dst,2)-1
         i = mod1(t, length(input))
-        dst[:,t+1] = m(input[i], dst[:,t])
+        @views dst[:,t+1] = m(input[i], dst[:,t])
     end
     dst
 end
 
 function trajectory!(dst::AbstractMatrix{F₂}, m::Model, input::Function)
-    @views for t in 1:size(dst,2)-1
-        dst[:,t+1] = m(input(t), dst[:,t])
+    for t in 1:size(dst,2)-1
+        @views dst[:,t+1] = m(input(t), dst[:,t])
     end
     dst
 end
 
 function trajectory!(dst::AbstractMatrix{F₂}, m::Model, input::AbstractVector{F₂})
-    @views for t in 1:size(dst,2)-1
-        dst[:,t+1] = m(input, dst[:,t])
+    for t in 1:size(dst,2)-1
+        @views dst[:,t+1] = m(input, dst[:,t])
     end
     dst
 end
@@ -100,26 +100,30 @@ end
 
 function ensemble(m::Model, input, t, n, args...; kwargs...)
     ensemble = Array{F₂}(undef, length(m), t, n)
-    @views for i in 1:n
-        ensemble[:,1,i] = rand(F, length(m))
-        trajectory!(ensemble[:,:,i], m, input, args...; kwargs...)
+    @threads for i in 1:n
+        @views begin
+            ensemble[:,1,i] = rand(F, length(m))
+            trajectory!(ensemble[:,:,i], m, input, args...; kwargs...)
+        end
     end
     ensemble
 end
 
 function ensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
     ensemble = Array{F₂}(undef, length(m), t, n)
-    @views for i in 1:n
-        trajectory!(ensemble[:,:,i], m, init, input, args...; kwargs...)
+    @threads for i in 1:n
+        @views trajectory!(ensemble[:,:,i], m, init, input, args...; kwargs...)
     end
     ensemble
 end
 
 function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
     ensemble = Array{F₂}(undef, length(m), n)
-    @views for i in 1:n
-        ensemble[:,i] = rand(F, length(m))
-        update!(ensemble[:,i], m, input, t, args...; kwargs...)
+    @threads for i in 1:n
+        @views begin
+            ensemble[:,i] = rand(F, length(m))
+            update!(ensemble[:,i], m, input, t, args...; kwargs...)
+        end
     end
     ensemble
 end

@@ -1,23 +1,17 @@
+using ArgParse
+using BlackBoxOptim
 using DrWatson
 using HFSP
-using Metaheuristics
 using Queryverse
 using StaticArrays
 using Statistics
-
-const DEFAULT_GRAPH = datadir("exp_pro", "sam.jld2")
-const DEFAULT_DATA  = datadir("exp_pro", "2021-08-10_expression-levels", "ft.csv")
-
-const MODELFILE = datadir("sims", "2021-08-10_expression-levels", "model.jld2")
-const SIMFILE = datadir("sims", "2021-08-10_expression-levels", "sim.csv")
-const PLOTFILE = plotsdir("2021-08-10_expression-levels.png")
 
 stderr(A::AbstractArray) = isempty(A) ? zero(Float64) : std(A) / sqrt(length(A))
 
 struct Config{G}
     graph::G
     data::DataFrame
-    function Config(; graphfile=DEFAULT_GRAPH, datafile=DEFAULT_DATA)
+    function Config(graphfile, datafile)
         graph = setup(graphfile)
         data = loaddata(datafile)
         new{typeof(graph)}(graph, data)
@@ -124,53 +118,33 @@ function warmloss(config::Config, n; p=0.0)
     end
 end
 
-function fitmodel(loss::Function, npop::Int, x₀, σ; debug=false, kwargs...)
-    debug && @info "Building Population"
-    X = [x₀ .+ σ * randn(length(x₀)) for _ in 2:npop]
-    push!(X, x₀)
-    pop = [Metaheuristics.create_child(x, loss(x)) for x in X]
-
-    debug && @info "Building Algorithm"
-    algo = ECA(N = length(pop), adaptive=true, options=Options(; debug, kwargs...))
-    algo.status = State(Metaheuristics.get_best(pop), pop)
-
+function fitmodel(loss::Function, args...; debug=false, kwargs...)
     debug && @info "Running Optimization"
-    bounds = [zeros(length(x₀)) ones(length(x₀))]'
-    coldresult = optimize(loss, bounds, algo)
+    TraceMode = debug ? :compact : :silent
+    result = bboptimize(loss, args...; TraceMode, kwargs...)
 
     debug && @info "Done"
-    minimizer(coldresult)
+    best_candidate(result)
 end
 
-function fitmodel(loss::Function, npop::Int; bounds=[0 1.]', debug=false, kwargs...)
-    debug && @info "Building Algorithm"
-    algo = ECA(N = npop, adaptive=true, options=Options(; debug, kwargs...))
-
-    debug && @info "Running Optimization"
-    coldresult = optimize(loss, bounds, algo)
-
-    debug && @info "Done"
-    minimizer(coldresult)
-end
-
-function fitmodel(config::Config, n::Int, npop::Int; debug=false, kwargs...)
+function fitmodel(config::Config, n::Int; debug=false, kwargs...)
     debug && @info "Building Cold Loss Function"
     cold = coldloss(config, n; q=0.0)
 
     debug && @info "Fitting Cold Parameter"
-    p = fitmodel(cold, npop; debug, kwargs...)
+    p = fitmodel(cold; debug, SearchRange=(0.0, 1.0), NumDimensions=1, kwargs...)
 
     debug && @info "Building Warm Loss Function"
     warm = warmloss(config, n; p=p[1])
 
     debug && @info "Fitting Warm Parameter"
-    q = fitmodel(warm, npop; debug, kwargs...)
+    q = fitmodel(warm; debug, SearchRange=(0.0, 1.0), NumDimensions=1, kwargs...)
 
     debug && @info "Building Joint Loss Function"
     loss = jointloss(config, n)
 
     debug && @info "Fitting Joint Parameters"
-    params = fitmodel(loss, npop, [p..., q...], 0.001; debug, kwargs...)
+    params = fitmodel(loss, [p..., q...]; debug, SearchRange=(0.0, 1.0), NumDimensions=2, kwargs...)
 
     debug && @info "Building Final Model"
     model = tomodel(config, params...)
@@ -223,20 +197,73 @@ function plot(df)
         )
 end
 
+const DEFAULT_GRAPH = datadir("exp_pro", "sam.jld2")
+
+s = ArgParseSettings()
+@add_arg_table! s begin
+    "--data", "-d"
+        help = "the path to the data to fit the model to, CSV format"
+        arg_type = String
+        required = true
+    "--graph", "-g"
+        help = "path to the graph file, JLD2 format"
+        arg_type = String
+        default = DEFAULT_GRAPH
+    "--out", "-o"
+        help = "the path to the directory in which to store the model and simulation data"
+        arg_type = String
+        default = datadir("sims")
+    "--plot", "-p"
+        help = "the path to the directory in which to store plots"
+        arg_type = String
+        default = plotsdir()
+    "--enssize", "-e"
+        help = "the size of the ensembled used to compute average behavior"
+        arg_type = Int
+        default = 100
+    "--maxtime", "-t"
+        help = "the maximum number of evaluations to run"
+        arg_type = Int
+        default = 1000
+    "--method", "-m"
+        help = "the optimization method used"
+        arg_type = String
+        default = "adaptive_de_rand_1_bin_radiuslimited"
+    "--verbose", "-v"
+        help = "run in verbose mode"
+        action = :store_true
+end
+
 function main()
-    debug = true
-    enssize, npop = 100, 10
-    iterations = 100
+    args = parse_args(s)
 
-    config = Config()
-    model, value, params = fitmodel(config, enssize, npop; debug, iterations)
+    graphfile = args["graph"]
+    datafile = args["data"]
+    debug = args["verbose"]
+    enssize = args["enssize"]
+    MaxTime = args["maxtime"]
+    Method = Symbol(args["method"])
 
-    tagsave(MODELFILE, Dict("model" => model))
+    name, _ = splitext(basename(datafile))
+    modelfile = joinpath(args["out"], name * "_model.jld2")
+    simfile = joinpath(args["out"], name * "_sim.csv")
+    plotfile = joinpath(args["plot"], name * ".png")
+
+    config = Config(graphfile, datafile)
+    model, value, params = fitmodel(config, enssize; debug, MaxTime, Method)
+
+    debug && @info "Saving model to" modelfile
+    mkpath(dirname(modelfile))
+    tagsave(modelfile, Dict("model" => model))
 
     df = runmodel(model, config.data, enssize)
-    save(SIMFILE, df)
+    debug && @info "Saving sim data to" simfile
+    mkpath(dirname(simfile))
+    save(simfile, df)
 
-    plot(df) |> save(PLOTFILE)
+    debug && @info "Saving plot to" plotfile
+    mkpath(dirname(plotfile))
+    plot(df) |> save(plotfile)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

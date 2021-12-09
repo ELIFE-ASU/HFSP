@@ -117,11 +117,22 @@ function ensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kw
     ensemble
 end
 
-function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
+function finalensemble(m::Model, input, t, n, args...; kwargs...)
     ensemble = Array{F₂}(undef, length(m), n)
     @threads for i in 1:n
         @views begin
             ensemble[:,i] = rand(F, length(m))
+            update!(ensemble[:,i], m, input, t, args...; kwargs...)
+        end
+    end
+    ensemble
+end
+
+function finalensemble(m::Model, init::AbstractVector{F₂}, input, t, n, args...; kwargs...)
+    ensemble = Array{F₂}(undef, length(m), n)
+    @threads for i in 1:n
+        @views begin
+            ensemble[:,i] = init[:]
             update!(ensemble[:,i], m, input, t, args...; kwargs...)
         end
     end

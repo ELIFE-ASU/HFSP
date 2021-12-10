@@ -14,7 +14,7 @@ using StaticArrays
 using Statistics
 import MultivariatePolynomials as MP
 
-include("vars.jl")
+include("field.jl")
 include("statespace.jl")
 include("polynomials.jl")
 include("model.jl")

@@ -77,44 +77,12 @@ function setparams!(model, p, q)
     model
 end
 
-function setp!(model, p)
-    for poly in model.p
-        poly.f[1].p = p
-    end
-    model
-end
-
-function setq!(model, q)
-    for poly in model.p
-        poly.f[4].p = q
-    end
-    model
-end
-
 function jointloss(config::Config, n)
     basemodel = tomodel(config, 0.0, 0.0)
     params -> begin
         model = copy(basemodel)
         setparams!(model, params...)
         evaluatemodel(model, config.data, n; cond=(c, w) -> !iszero(c) || !iszero(w))
-    end
-end
-
-function coldloss(config::Config, n; q=0.0)
-    basemodel = tomodel(config, 0.0, q)
-    params -> begin
-        model = copy(basemodel)
-        setp!(model, params...)
-        evaluatemodel(model, config.data, n; cond=(c, w) -> !iszero(c) && iszero(w))
-    end
-end
-
-function warmloss(config::Config, n; p=0.0)
-    basemodel = tomodel(config, p, 0.0)
-    params -> begin
-        model = copy(basemodel)
-        setq!(model, params...)
-        evaluatemodel(model, config.data, n; cond=(c, w) -> !iszero(w))
     end
 end
 
@@ -128,23 +96,11 @@ function fitmodel(loss::Function, args...; debug=false, kwargs...)
 end
 
 function fitmodel(config::Config, n::Int; debug=false, kwargs...)
-    debug && @info "Building Cold Loss Function"
-    cold = coldloss(config, n; q=0.0)
-
-    debug && @info "Fitting Cold Parameter"
-    p = fitmodel(cold; debug, SearchRange=(0.0, 1.0), NumDimensions=1, kwargs...)
-
-    debug && @info "Building Warm Loss Function"
-    warm = warmloss(config, n; p=p[1])
-
-    debug && @info "Fitting Warm Parameter"
-    q = fitmodel(warm; debug, SearchRange=(0.0, 1.0), NumDimensions=1, kwargs...)
-
-    debug && @info "Building Joint Loss Function"
+    debug && @info "Building Loss Function"
     loss = jointloss(config, n)
 
-    debug && @info "Fitting Joint Parameters"
-    params = fitmodel(loss, [p..., q...]; debug, SearchRange=(0.0, 1.0), NumDimensions=2, kwargs...)
+    debug && @info "Fitting Parameters"
+    params = fitmodel(loss; debug, SearchRange=(0.0, 1.0), NumDimensions=2, kwargs...)
 
     debug && @info "Building Final Model"
     model = tomodel(config, params...)

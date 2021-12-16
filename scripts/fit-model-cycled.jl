@@ -24,49 +24,64 @@ function loaddata(datafile, scaling=x -> x)
     df = load(datafile) |>
         @groupby([_.Cold, _.Warm]) |>
         @map({
-            Cold     = first(key(_)),
-            Warm     = last(key(_)),
-            MeanFT   = mean(_.FT),
-            VarFT    = var(_.FT),
-            StdErrFT = stderr(_.FT)
+            Cold        = first(key(_)),
+            Warm        = last(key(_)),
+            MeanLevel   = mean(_.Level),
+            Variance    = var(_.Level),
+            StdError    = stderr(_.Level)
         }) |>
         DataFrame
-    df.Level = scaling(df.MeanFT) ./ maximum(df.MeanFT)
+    df.ScaledLevel = scaling(df.MeanLevel) ./ maximum(df.MeanLevel)
     df
 end
+
+
+function tempschedule(prep, cold, warm; coldunit=20, warmunit=4)
+    coldunit + warmunit != 24 && error("coldunit + warmunit must be 24")
+
+    prepwarm = ones(F, prep)
+          
+    unit = if iszero(warm)
+        zeros(F, coldunit + warmunit)
+    elseif isone(warm)
+        [zeros(F, coldunit); ones(F, warmunit)]
+    else
+        error("warm must be 0 or 1")
+    end
+
+    outer, additional = iszero(warm) ? divrem(cold, 24) : divrem(cold, coldunit)
+           
+    [prepwarm; repeat(unit; outer); ones(F, additional)]
+end
+
 
 function runmodel(model, data, n)
     df = DataFrame(Trial=Int[], Cold=Int[], Warm=Int[], ExpLevel=Float64[], Level=Float64[])
     init = zeros(F, length(model))
     for row in eachrow(data)
-        cold, warm, exp_level = row.Cold, row.Warm, row.Level
-        if !iszero(cold) || !iszero(warm)
-            input = t -> t ≤ cold ? [F(0)] : [F(1)]
-            ens = finalensemble(model, init, input, cold + warm, n)
-            levels = mean(Array{Float64}(ens); dims=1)[1,:]
-            for (trial, level) in enumerate(levels)
-                push!(df, [trial, cold, warm, exp_level, level])
-            end
+        cold, warm, exp_level = row.Cold, row.Warm, row.ScaledLevel
+        input = tempschedule(1680, cold, warm)
+        ens = finalensemble(model, init, input, length(input), n)
+        levels = mean(Array{Float64}(ens); dims=1)[1,:]
+        for (trial, level) in enumerate(levels)
+            push!(df, [trial, cold, warm, exp_level, level])
         end
     end
-    df.Treatment = string.(df.Cold) .* "/" .* string.(df.Warm)
+    df.Treatment = string.(Int.(df.Cold / 168)) .* "W_C" .* map(x -> x == 1 ? "W" : "", df.Warm)
     df
 end
 
-function evaluatemodel(model, data, n; cond=(c, w) -> !iszero(c) || !iszero(w))
-    init = zeros(F, length(model))
-    loss = 0.0
-    for row in eachrow(data)
-        cold, warm, exp_level = row.Cold, row.Warm, row.Level
-        if cond(cold, warm)
-            input = t -> t ≤ cold ? [F(0)] : [F(1)]
-            ens = finalensemble(model, init, input, cold + warm, n)
-            levels = mean(Array{Float64}(ens); dims=1)[1,:]
-            μ, se = mean(levels), stderr(levels)
-            loss += (exp_level - μ)^2
-        end
-    end
-    return loss
+
+function evaluatemodel(model, data, n)
+    run = runmodel(model,data,n)
+    df = run |>
+        @groupby([_.Cold, _.Warm]) |>
+        @map({
+            Loss = (first(_.ExpLevel) - mean(_.Level))^2
+        }) |>
+        DataFrame
+
+    mean(df.Loss)
 end
 
 function setparams!(model, p, q)
@@ -82,7 +97,7 @@ function jointloss(config::Config, n)
     params -> begin
         model = copy(basemodel)
         setparams!(model, params...)
-        evaluatemodel(model, config.data, n; cond=(c, w) -> !iszero(c) || !iszero(w))
+        evaluatemodel(model, config.data, n)
     end
 end
 

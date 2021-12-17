@@ -74,7 +74,6 @@ function runmodel(model, data, n)
     df
 end
 
-
 function evaluatemodel(model, data, n)
     run = runmodel(model,data,n)
     df = run |>

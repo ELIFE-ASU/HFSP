@@ -43,7 +43,7 @@ end
 
 function update!(dst::AbstractVector{F₂}, m::Model, input::AbstractVector{<:AbstractVector{F₂}}, n::Int)
     @views for t in 1:n
-        i = mod(t, length(input))
+        i = mod1(t, length(input))
         dst[:] = m(input[i], dst)
     end
     dst

@@ -37,12 +37,11 @@ function loaddata(datafile, scaling=x -> x)
     raw, processed
 end
 
-
 function tempschedule(prep, cold, warm; coldunit=20, warmunit=4)
     coldunit + warmunit != 24 && error("coldunit + warmunit must be 24")
 
     prepwarm = ones(F, prep)
-          
+
     unit = if iszero(warm)
         zeros(F, coldunit + warmunit)
     elseif isone(warm)
@@ -52,10 +51,9 @@ function tempschedule(prep, cold, warm; coldunit=20, warmunit=4)
     end
 
     outer, additional = iszero(warm) ? divrem(cold, 24) : divrem(cold, coldunit)
-           
-    [prepwarm; repeat(unit; outer); ones(F, additional)]
-end
 
+    map(collect, [prepwarm; repeat(unit; outer); ones(F, additional)])
+end
 
 function runmodel(model, data, n)
     df = DataFrame(Trial=Int[], Cold=Int[], Warm=Int[], ExpLevel=Float64[], Level=Float64[])

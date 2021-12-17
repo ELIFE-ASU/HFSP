@@ -57,10 +57,13 @@ end
 
 function runmodel(model, data, n)
     df = DataFrame(Trial=Int[], Cold=Int[], Warm=Int[], ExpLevel=Float64[], Level=Float64[])
-    init = zeros(F, length(model))
     for row in eachrow(data)
         cold, warm, exp_level = row.Cold, row.Warm, row.ScaledLevel
-        input = tempschedule(1680, cold, warm)
+        init, input = if iszero(cold) && iszero(warm)
+            rand(F, length(model)), tempschedule(1680, cold, warm)
+        else
+            zeros(F, length(model)), tempschedule(0, cold, warm)
+        end
         ens = finalensemble(model, init, input, length(input), n)
         levels = mean(Array{Float64}(ens); dims=1)[1,:]
         for (trial, level) in enumerate(levels)

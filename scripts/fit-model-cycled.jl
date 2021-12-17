@@ -10,18 +10,20 @@ stderr(A::AbstractArray) = isempty(A) ? zero(Float64) : std(A) / sqrt(length(A))
 
 struct Config{G}
     graph::G
+    raw::DataFrame
     data::DataFrame
     function Config(graphfile, datafile)
         graph = setup(graphfile)
-        data = loaddata(datafile)
-        new{typeof(graph)}(graph, data)
+        raw, data = loaddata(datafile)
+        new{typeof(graph)}(graph, raw, data)
     end
 end
 
 tomodel(config::Config, p, q) = model3(config.graph; p, q)
 
 function loaddata(datafile, scaling=x -> x)
-    df = load(datafile) |>
+    raw = DataFrame(load(datafile))
+    processed = raw |>
         @groupby([_.Cold, _.Warm]) |>
         @map({
             Cold        = first(key(_)),
@@ -31,8 +33,8 @@ function loaddata(datafile, scaling=x -> x)
             StdError    = stderr(_.Level)
         }) |>
         DataFrame
-    df.ScaledLevel = scaling(df.MeanLevel) ./ maximum(df.MeanLevel)
-    df
+    processed.ScaledLevel = scaling(processed.MeanLevel) ./ maximum(processed.MeanLevel)
+    raw, processed
 end
 
 

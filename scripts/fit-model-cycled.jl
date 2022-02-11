@@ -10,18 +10,20 @@ stderr(A::AbstractArray) = isempty(A) ? zero(Float64) : std(A) / sqrt(length(A))
 
 struct Config{G}
     graph::G
+    raw::DataFrame
     data::DataFrame
     function Config(graphfile, datafile)
         graph = setup(graphfile)
-        data = loaddata(datafile)
-        new{typeof(graph)}(graph, data)
+        raw, data = loaddata(datafile)
+        new{typeof(graph)}(graph, raw, data)
     end
 end
 
 tomodel(config::Config, p, q) = model3(config.graph; p, q)
 
 function loaddata(datafile, scaling=x -> x)
-    df = load(datafile) |>
+    raw = DataFrame(load(datafile))
+    processed = raw |>
         @groupby([_.Cold, _.Warm]) |>
         @map({
             Cold        = first(key(_)),
@@ -31,16 +33,15 @@ function loaddata(datafile, scaling=x -> x)
             StdError    = stderr(_.Level)
         }) |>
         DataFrame
-    df.ScaledLevel = scaling(df.MeanLevel) ./ maximum(df.MeanLevel)
-    df
+    processed.ScaledLevel = scaling(processed.MeanLevel) ./ maximum(processed.MeanLevel)
+    raw, processed
 end
-
 
 function tempschedule(prep, cold, warm; coldunit=20, warmunit=4)
     coldunit + warmunit != 24 && error("coldunit + warmunit must be 24")
 
     prepwarm = ones(F, prep)
-          
+
     unit = if iszero(warm)
         zeros(F, coldunit + warmunit)
     elseif isone(warm)
@@ -50,17 +51,19 @@ function tempschedule(prep, cold, warm; coldunit=20, warmunit=4)
     end
 
     outer, additional = iszero(warm) ? divrem(cold, 24) : divrem(cold, coldunit)
-           
-    [prepwarm; repeat(unit; outer); ones(F, additional)]
-end
 
+    map(collect, [prepwarm; repeat(unit; outer); ones(F, additional)])
+end
 
 function runmodel(model, data, n)
     df = DataFrame(Trial=Int[], Cold=Int[], Warm=Int[], ExpLevel=Float64[], Level=Float64[])
-    init = zeros(F, length(model))
     for row in eachrow(data)
         cold, warm, exp_level = row.Cold, row.Warm, row.ScaledLevel
-        input = tempschedule(1680, cold, warm)
+        init, input = if iszero(cold) && iszero(warm)
+            rand(F, length(model)), tempschedule(1680, cold, warm)
+        else
+            zeros(F, length(model)), tempschedule(0, cold, warm)
+        end
         ens = finalensemble(model, init, input, length(input), n)
         levels = mean(Array{Float64}(ens); dims=1)[1,:]
         for (trial, level) in enumerate(levels)
@@ -70,7 +73,6 @@ function runmodel(model, data, n)
     df.Treatment = string.(Int.(df.Cold / 168)) .* "W_C" .* map(x -> x == 1 ? "W" : "", df.Warm)
     df
 end
-
 
 function evaluatemodel(model, data, n)
     run = runmodel(model,data,n)

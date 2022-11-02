@@ -14,7 +14,7 @@ import altair as alt
 
 # Load data from the respective csv and construct a static graph/network of plant tissue with the state 'state'
 
-def create_tissue(csv_path,edge_state):
+def create_tissue(csv_path,edge_weight):
     
     csv_df = pd.read_csv(csv_path) 
     
@@ -23,31 +23,30 @@ def create_tissue(csv_path,edge_state):
     g.add_nodes_from(node_list)
     for i in range(len(csv_df)):
         g.add_edge(csv_df.iloc[i,0],csv_df.iloc[i,1])
-    initial_node_state = np.zeros(len(g.nodes()), dtype = np.int8)
-    assert len(initial_node_state) == len(g.nodes()) 
-    nx.set_node_attributes(g, dict(zip(g.nodes(), initial_node_state)), name="state") 
-    if edge_state == True:
-        initial_edge_state = np.zeros(len(g.edges()), dtype = np.int8)
-        nx.set_edge_attributes(g, dict(zip(g.edges(), initial_edge_state)), "edge_state")
+    initial_state = np.zeros(len(g.nodes()), dtype = np.int8)
+    assert len(initial_state) == len(g.nodes())
+    nx.set_node_attributes(g, dict(zip(g.nodes(), initial_state)), name="state") 
+    if edge_weight == True:
+        weights = [csv_df.iloc[i,2] for i in range(len(csv_df))]
+        nx.set_edge_attributes(g, dict(zip(g.edges(), weights)), "weight")
     
     return g
 
-def plt_tissue(g, edge_state, save_with_name):
+def plt_tissue(g, edge_weight, save_with_name):
     plt.figure(figsize = (12,12))
     pos = nx.kamada_kawai_layout(g)
-    color_list_nodes = []
+    color_list = []
     for x in g.nodes():
         if g.nodes[x]["state"] == 0:
-            color_list_nodes.append("black")
+            color_list.append("black")
         if g.nodes[x]["state"] == 1:
-            color_list_nodes.append("white")
+            color_list.append("white")
             
-    nx.draw_networkx_nodes(g, pos, node_color= color_list_nodes,edgecolors="black")
-    if edge_state == False:
-        nx.draw_networkx_edges(g,pos,edge_color = 'green', width=2)
+    nx.draw_networkx_nodes(g,pos,node_color= color_list, edgecolors="black")
+    if edge_weight == False:
+        nx.draw_networkx_edges(g,pos,edge_color = 'red', width=2)
         
-    if edge_state == True:
-        '''        
+    if edge_weight == True:
         all_weights = []
         for (node1,node2,data) in g.edges(data=True):
             all_weights.append(data["weight"])
@@ -56,68 +55,36 @@ def plt_tissue(g, edge_state, save_with_name):
         for w in unique_weights:
             weighted_edges = [(node1,node2) for (node1,node2,edge_attr) in g.edges(data=True) if edge_attr['weight']==w]
             nx.draw_networkx_edges(g,pos,edge_color = 'blue',edgelist=weighted_edges,width=0.3*w)
-        '''
-        color_list_edges = []
-        for x in g.edges():
-            if g.edges[x]["edge_state"] == 0:
-                color_list_edges.append("red")
-            if g.edges[x]["edge_state"] == 1:
-                color_list_edges.append("green")
-            
-        nx.draw_networkx_edges(g,pos,edge_color = color_list_edges, width=2)
-        
     if save_with_name != None:
         plt.savefig(save_with_name)
     
     plt.show()
 
-# Update the nodes (gene expression) according the following function;
+# Update the network; basically the state of the network according to the rule
 # rule_code = 0: No rule
-# rule_code = 1: Majority rule with all edges open
-# rule_code = (2,critical_number): 
-
-def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code): 
+# rule_code = 1: Majority rule with 
+# rule_code = 2
+def update_rule(g, temp, p_cold, p_warm, rule_code): 
     for x in list(g.nodes()):
-        
         if temp == 0 and g.nodes[x]["state"] == 0:
             c1 = np.random.choice(['no_rule','rule'], p = [p_cold,1-p_cold])
             if c1 == 'no_rule':
                 g.nodes[x]["state"] = 1
-            if c1 == 'rule' and rule_code[0] == 1:
+            if c1 == 'rule' and rule_code == 1:
                 neighbor_states = np.array([g.nodes[y]["state"] for y in list(g.neighbors(x))])
-                if np.sum(neighbor_states)/len(neighbor_states) >= rule_code[1]:
+                if np.sum(neighbor_states)/len(neighbor_states) >= 0.5:
                     g.nodes[x]["state"] = 1
                     
+
         if temp == 1 and g.nodes[x]["state"] == 1:
             c2 = np.random.choice(['noise','no_noise'], p = [p_warm,1-p_warm])
             if c2 == 'noise':
                 g.nodes[x]["state"] = 0
                 
-        if g.nodes[x]["state"] == 1:
-            c0 = np.random.choice(['decay', 'no_decay'], p = [p_decay, 1-p_decay])
-            if c0 == 'decay':
-                g.nodes[x]["state"] = 0
-    return g  
-
-def update_rule_edges(g, p_edges, rule_code):
-    if rule_code == 0: # decoupled PD and genetics
-        for x in list(g.edges()):
-            c0 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
-            if c0 == 'PD_open':        
-                g.edges[x]["edge_state"] = 1 # Very cool! This should work.
-    
-    if rule_code == 1: # Coupled PD and genetics
-        active_nodes = [x for x in g.nodes() if g.nodes[x]["state"] == 1]
-        potentially_active_edges = list(g.edges(active_nodes))
-        for y in potentially_active_edges:
-            c1 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
-            if c1 == 'PD_open':        
-                g.edges[y]["edge_state"] = 1
-        
-    return g       
+    return g          
     
 def update_spontaneous(g, jump_state):
-    if jump_state == "default" :
+    if jump_state == "default":
         jump = np.zeros((len(g.nodes()),),dtype = int)
     else:
         assert len(g.nodes()) == len(jump_state)
@@ -127,7 +94,7 @@ def update_spontaneous(g, jump_state):
         
 
 
-def trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code): # temp schedule is the list of cold (0), warm(1) schedules 
+def trajectory(g, temp_sch, p_cold, p_warm, rule_code): # temp schedule is the list of cold (0), warm(1) schedules 
     
     temp_array = np.array([],dtype = int)         
     for i in range(len(temp_sch)):
@@ -142,7 +109,7 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code): # temp schedule
     g_0 = g
     trajectory[0] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()])
     for k in range(len(temp_array)):
-        g_0 = update_rule_nodes(g_0, temp_array[k], p_decay, p_cold, p_warm, rule_code)
+        g_0 = update_rule(g_0, temp_array[k], p_cold, p_warm, rule_code)
         trajectory[k+1] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()])
         
     time_array = np.arange(len(temp_array)+1)
@@ -157,12 +124,12 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code): # temp schedule
     return trajectory_df
     
 
-def ensemble(g, temp_sch, p_decay, p_cold, p_warm, rule_code, ensemble_size, jump_state):
-    ensemble_data = trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code).iloc[:,[0,1]]
+def ensemble(g, temp_sch, p_cold, p_warm, rule_code, ensemble_size):
+    ensemble_data = trajectory(g, temp_sch, p_cold, p_warm, rule_code).iloc[:,[0,1]]
     ensemble_data.rename(columns={"expression_level":"sim_1"} ,inplace=True)
     for i in range(ensemble_size-1):
-        update_spontaneous(g, jump_state)
-        traj = trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code).iloc[:,1]
+        update_spontaneous(g, "default")
+        traj = trajectory(g, temp_sch, p_cold, p_warm, rule_code).iloc[:,1]
         ensemble_data.insert(i+2,"sim_{}".format(i+2), traj)
     
     ensemble_data['mean'] = ensemble_data.iloc[:,1:ensemble_size].mean(axis=1)
@@ -173,10 +140,10 @@ def ensemble(g, temp_sch, p_decay, p_cold, p_warm, rule_code, ensemble_size, jum
    
     return ensemble_data
     
-def percentGA_plt(ensemble_data, color):
+def percentFT1_plt(ensemble_data, color):
     line = alt.Chart(ensemble_data).mark_line(color = color).encode(
     x=alt.X('time', title='time [1 unit = 1 hour]'),
-    y=alt.Y('mean', title= '% of cells with GA20OX-1 expressed')
+    y=alt.Y('mean', title= '% of cells with FT1 expressed')
     )
 
     band = alt.Chart(ensemble_data).mark_area(

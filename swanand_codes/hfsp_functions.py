@@ -72,31 +72,35 @@ def plt_tissue(g, edge_state, save_with_name):
     plt.show()
 
 # Update the nodes (gene expression) according the following function;
-# rule_code = 0: No rule
-# rule_code = 1: Majority rule with all edges open
-# rule_code = (2,critical_number): 
+
+# rule_code = [0,m]: All edges are assumed to be open (green)
+# rule_code = [1,m]: n_11/n > m
+# rule_code = [2,m]: n_11/n_1 > m
+# rule_code = [3,c]: n_11 > c
 
 def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code): 
     for x in list(g.nodes()):
         
         if temp == 0 and g.nodes[x]["state"] == 0:
-            c1 = np.random.choice(['no_rule','rule'], p = [p_cold,1-p_cold])
-            if c1 == 'no_rule':
+            c1 = np.random.choice([0,1], p = [p_cold,1-p_cold])
+            if c1 == 0:
                 g.nodes[x]["state"] = 1
-            if c1 == 'rule' and rule_code[0] == 1:
+            if c1 == 1 and rule_code[0] == 0:
                 neighbor_states = np.array([g.nodes[y]["state"] for y in list(g.neighbors(x))])
                 if np.sum(neighbor_states)/len(neighbor_states) >= rule_code[1]:
                     g.nodes[x]["state"] = 1
+            #if c1 == 1 and rule_code[0] == 1:
                     
         if temp == 1 and g.nodes[x]["state"] == 1:
-            c2 = np.random.choice(['noise','no_noise'], p = [p_warm,1-p_warm])
-            if c2 == 'noise':
+            c2 = np.random.choice([0,1], p = [p_warm,1-p_warm])
+            if c2 == 0:
                 g.nodes[x]["state"] = 0
                 
-        if g.nodes[x]["state"] == 1:
-            c0 = np.random.choice(['decay', 'no_decay'], p = [p_decay, 1-p_decay])
-            if c0 == 'decay':
-                g.nodes[x]["state"] = 0
+        if p_decay != 0:        
+            if g.nodes[x]["state"] == 1:
+                c0 = np.random.choice([0,1], p = [p_decay, 1-p_decay])
+                if c0 == 0:
+                    g.nodes[x]["state"] = 0
     return g  
 
 def update_rule_edges(g, p_edges, rule_code):

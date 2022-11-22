@@ -6,10 +6,8 @@ from scipy import stats
 from scipy import optimize
 import networkx as nx
 import pandas as pd
-from pyvis.network import Network
-import collections
-import itertools
-import altair as alt
+import itertools 
+import altair as alt # no need
 
 
 # Load data from the respective csv and construct a static graph/network of plant tissue with the state 'state'

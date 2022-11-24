@@ -83,11 +83,30 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
             c1 = np.random.choice([0,1], p = [p_cold,1-p_cold])
             if c1 == 0:
                 g.nodes[x]["state"] = 1
+            
             if c1 == 1 and rule_code[0] == 0:
                 neighbor_states = np.array([g.nodes[y]["state"] for y in list(g.neighbors(x))])
                 if np.sum(neighbor_states)/len(neighbor_states) >= rule_code[1]:
                     g.nodes[x]["state"] = 1
-            #if c1 == 1 and rule_code[0] == 1:
+            
+            if c1 == 1 and rule_code[0] == 3:
+                active_edges = [] 
+                Q = list(g.edges([x])) 
+                for j in range(len(Q)):
+                    if g.edges[Q[j]]["edge_state"] == 1:
+                        active_edges.append(Q[j]) # This way, we create a list of active edges of a given node 'x'
+                nodes_active_edges = [k[1] for k in active_edges] # list of 'nodes' with active edges
+                
+                active_nodes = []
+                P = list(g.neighbors(x)) 
+                for i in range(len(P)):
+                    if g.nodes[P[i]]["state"] == 1:
+                        active_nodes.append(P[i])
+                active_nodes_edges = list(set(nodes_active_edges) & set(active_nodes)) # nodes with active edges AND active nodes!
+                
+                n = len(active_nodes_edges)
+                if n >= rule_code[1]:
+                    g.nodes[x]["state"] = 1
                     
         if temp == 1 and g.nodes[x]["state"] == 1:
             c2 = np.random.choice([0,1], p = [p_warm,1-p_warm])
@@ -101,13 +120,15 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
                     g.nodes[x]["state"] = 0
     return g  
 
-def update_rule_edges(g, p_edges, rule_code):
+def update_rule_edges(g, p_edges, rule_code): 
+    # If rule code is 0 then it means edge dynamics is turned OFF
     if rule_code == 0: # decoupled PD and genetics
         for x in list(g.edges()):
-            c0 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
-            if c0 == 'PD_open':        
-                g.edges[x]["edge_state"] = 1 # Very cool! This should work.
-    
+            if temp == 0 and g.edges[x]["edge_state"] == 0:
+                c0 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
+                if c0 == 'PD_open':        
+                    g.edges[x]["edge_state"] = 1 # Very cool! This should work.
+
     if rule_code == 1: # Coupled PD and genetics
         active_nodes = [x for x in g.nodes() if g.nodes[x]["state"] == 1]
         potentially_active_edges = list(g.edges(active_nodes))
@@ -115,6 +136,10 @@ def update_rule_edges(g, p_edges, rule_code):
             c1 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
             if c1 == 'PD_open':        
                 g.edges[y]["edge_state"] = 1
+    # if rule_code == 10: rule 0 and 1 are superimposed!
+    # if rule_code == 2
+    # if rule_code == 20: rule 0 and 2 are superimposed!
+        
         
     return g       
     
@@ -129,7 +154,7 @@ def update_spontaneous(g, jump_state):
         
 
 
-def trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code): # temp schedule is the list of cold (0), warm(1) schedules 
+def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge): # temp schedule is the list of cold (0), warm(1) schedules 
     
     temp_array = np.array([],dtype = int)         
     for i in range(len(temp_sch)):
@@ -144,7 +169,7 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code): # temp schedule
     g_0 = g
     trajectory[0] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()])
     for k in range(len(temp_array)):
-        g_0 = update_rule_nodes(g_0, temp_array[k], p_decay, p_cold, p_warm, rule_code)
+        g_0 = update_rule_nodes(g_0, temp_array[k], p_decay, p_cold, p_warm, rule_code_node)
         trajectory[k+1] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()])
         
     time_array = np.arange(len(temp_array)+1)
@@ -159,12 +184,12 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code): # temp schedule
     return trajectory_df
     
 
-def ensemble(g, temp_sch, p_decay, p_cold, p_warm, rule_code, ensemble_size, jump_state):
-    ensemble_data = trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code).iloc[:,[0,1]]
+def ensemble(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge, ensemble_size, jump_state):
+    ensemble_data = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge).iloc[:,[0,1]]
     ensemble_data.rename(columns={"expression_level":"sim_1"} ,inplace=True)
     for i in range(ensemble_size-1):
         update_spontaneous(g, jump_state)
-        traj = trajectory(g, temp_sch, p_decay, p_cold, p_warm, rule_code).iloc[:,1]
+        traj = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge).iloc[:,1]
         ensemble_data.insert(i+2,"sim_{}".format(i+2), traj)
     
     ensemble_data['mean'] = ensemble_data.iloc[:,1:ensemble_size].mean(axis=1)

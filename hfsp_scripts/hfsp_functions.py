@@ -1,7 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt 
-from IPython.display import Math, Latex # for latex equations
-from IPython.core.display import Image # for displaying images
 from scipy import stats
 from scipy import optimize
 import networkx as nx

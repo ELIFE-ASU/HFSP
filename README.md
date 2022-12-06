@@ -1,22 +1,10 @@
-# HFSP
+# HFSP repo
+This repository has all the codes for the HFSP project. The main branch implements the boolean model that simulates the process of bud dormancy break. The '' branch implements the information theoretic analysis of the model and the experimental data.
 
-This code base is using the Julia Language and [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
-to make a reproducible scientific project named
-> HFSP
-
-It is authored by Douglas G. Moore.
-
-To (locally) reproduce this project, do the following:
-
-0. Download this code base. Notice that raw data are typically not included in the
-   git-history and may need to be downloaded independently.
-1. Open a Julia console and do:
-   ```
-   julia> using Pkg
-   julia> Pkg.add("DrWatson") # install globally, for using `quickactivate`
-   julia> Pkg.activate("path/to/this/project")
-   julia> Pkg.instantiate()
-   ```
-
-This will install all necessary packages for you to be able to run the scripts and
-everything should work out of the box, including correctly finding local paths.
+## HFSP model
+The bud tissue is modelled as a network having cells as nodes and their connections as edges. The state of the tissue/network is the boolean state of the nodes (representing gene expression of the cell) plus the boolean state of the edges (representing PD's) The HFSP model updates the state of the network once in every hour, based on the follwoing parameters:
+- p_cold (probability that a cell updates its state from 0 to 1 in the cold phase)
+- p_warm (probability that a cell updates its state from 1 to 0 in the warm phase)
+- p_edge (probability that an edge updates its state from 0 to 1)
+- majority rule code = [{0,1,2,3}, percentage]
+- edge dynamics rule code = {0,1,2}

@@ -38,7 +38,7 @@ def plt_tissue(g, edge_state, save_with_name):
         if g.nodes[x]["state"] == 1:
             color_list_nodes.append("white")
             
-    nx.draw_networkx_nodes(g, pos, node_color= color_list_nodes,edgecolors="black")
+    nx.draw_networkx_nodes(g, pos, node_color= color_list_nodes, edgecolors="black")
     if edge_state == False:
         nx.draw_networkx_edges(g,pos,edge_color = 'green', width=2)
         
@@ -61,18 +61,18 @@ def plt_tissue(g, edge_state, save_with_name):
                 color_list_edges.append("green")
             
         nx.draw_networkx_edges(g,pos,edge_color = color_list_edges, width=2)
-        
+   
     if save_with_name != None:
-        plt.savefig(save_with_name)
+        plt.savefig(save_with_name, dpi = 600)
     
     plt.show()
 
 # Update the nodes (gene expression) according the following function;
 
-# rule_code = [0,m]: All edges are assumed to be open (green)
-# rule_code = [1,m]: n_11/n > m
-# rule_code = [2,m]: n_11/n_1 > m
-# rule_code = [3,c]: n_11 > c
+# rule_code = [0,m]: n1/n0 ; All edges are assumed to be open (green)
+# rule_code = [1,m]: n_12/n0 > m
+# rule_code = [2,m]: n_12/n2 > m
+# rule_code = [3,c]: n_12 > c
 
 def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code): 
     for x in list(g.nodes()):
@@ -87,24 +87,25 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
                 if np.sum(neighbor_states)/len(neighbor_states) >= rule_code[1]:
                     g.nodes[x]["state"] = 1
             
-            if c1 == 1 and rule_code[0] == 3:
+            if c1 == 1 and rule_code[0] == 2:
                 active_edges = [] 
                 Q = list(g.edges([x])) 
                 for j in range(len(Q)):
                     if g.edges[Q[j]]["edge_state"] == 1:
                         active_edges.append(Q[j]) # This way, we create a list of active edges of a given node 'x'
-                nodes_active_edges = [k[1] for k in active_edges] # list of 'nodes' with active edges
+                N2 = [k[1] for k in active_edges] # list of 'nodes' with active edges
                 
-                active_nodes = []
-                P = list(g.neighbors(x)) 
-                for i in range(len(P)):
-                    if g.nodes[P[i]]["state"] == 1:
-                        active_nodes.append(P[i])
-                active_nodes_edges = list(set(nodes_active_edges) & set(active_nodes)) # nodes with active edges AND active nodes!
-                
-                n = len(active_nodes_edges)
-                if n >= rule_code[1]:
-                    g.nodes[x]["state"] = 1
+                if len(N2) != 0:
+                    N1 = []
+                    P = list(g.neighbors(x)) 
+                    for i in range(len(P)):
+                        if g.nodes[P[i]]["state"] == 1:
+                            N1.append(P[i])
+                    N12 = list(set(N2) & set(N1)) # nodes with active edges AND active nodes!
+
+                    n = len(N12)/len(N2)
+                    if n >= rule_code[1]:
+                        g.nodes[x]["state"] = 1
                     
         if temp == 1 and g.nodes[x]["state"] == 1:
             c2 = np.random.choice([0,1], p = [p_warm,1-p_warm])
@@ -118,37 +119,40 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
                     g.nodes[x]["state"] = 0
     return g  
 
-def update_rule_edges(g, p_edges, rule_code): 
+def update_rule_edges(g, temp, p_edge, rule_code): 
     # If rule code is 0 then it means edge dynamics is turned OFF
     if rule_code == 0: # decoupled PD and genetics
         for x in list(g.edges()):
             if temp == 0 and g.edges[x]["edge_state"] == 0:
-                c0 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
+                c0 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edge, 1-p_edge])
                 if c0 == 'PD_open':        
                     g.edges[x]["edge_state"] = 1 # Very cool! This should work.
 
     if rule_code == 1: # Coupled PD and genetics
         active_nodes = [x for x in g.nodes() if g.nodes[x]["state"] == 1]
-        potentially_active_edges = list(g.edges(active_nodes))
+        potentially_active_edges = list(g.edges(active_nodes)) # check if there are any repetitions in this set!
         for y in potentially_active_edges:
-            c1 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edges, 1-p_edges])
-            if c1 == 'PD_open':        
-                g.edges[y]["edge_state"] = 1
+            if temp == 0 and g.edges[y]["edge_state"] == 0:
+                c1 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edge, 1-p_edge])
+                if c1 == 'PD_open':        
+                    g.edges[y]["edge_state"] = 1
     # if rule_code == 10: rule 0 and 1 are superimposed!
     # if rule_code == 2
     # if rule_code == 20: rule 0 and 2 are superimposed!
-        
-        
+            
     return g       
     
 def update_spontaneous(g, jump_state):
     if jump_state == "default" :
-        jump = np.zeros((len(g.nodes()),),dtype = int)
+        jump_nodes = np.zeros((len(g.nodes()),),dtype = int)
+        jump_edges = np.zeros((len(g.edges()),),dtype = int)
     else:
         assert len(g.nodes()) == len(jump_state)
         jump = jump_state
     for i in range(len(g.nodes())):
-        g.nodes[list(g.nodes())[i]]["state"] = jump[i]
+        g.nodes[list(g.nodes())[i]]["state"] = jump_nodes[i]
+    for j in range(len(g.edges())):
+        g.edges[list(g.edges())[j]]["edge_state"] = jump_edges[j]
         
 
 
@@ -168,6 +172,7 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rul
     trajectory[0] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()])
     for k in range(len(temp_array)):
         g_0 = update_rule_nodes(g_0, temp_array[k], p_decay, p_cold, p_warm, rule_code_node)
+        g_0 = update_rule_edges(g_0, temp_array[k], p_edge, rule_code_edge)
         trajectory[k+1] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()])
         
     time_array = np.arange(len(temp_array)+1)

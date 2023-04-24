@@ -237,8 +237,8 @@ def ensemble(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_
         traj = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge).iloc[:,1]
         ensemble_data.insert(i+2,"sim_{}".format(i+2), traj)
     
-    ensemble_data['mean'] = ensemble_data.iloc[:,1:ensemble_size].mean(axis=1)
-    ensemble_data['std'] = ensemble_data.iloc[:,1:ensemble_size].std(axis=1)
+    ensemble_data['mean'] = ensemble_data.iloc[:,1:ensemble_size+1].mean(axis=1)
+    ensemble_data['std'] = ensemble_data.iloc[:,1:ensemble_size+1].std(axis=1)
     ensemble_data['upper'] = ensemble_data.iloc[:,ensemble_size+1] + 1.96*ensemble_data.iloc[:,ensemble_size+2]/np.sqrt(ensemble_size)
     ensemble_data['lower'] = ensemble_data.iloc[:,ensemble_size+1] - 1.96*ensemble_data.iloc[:,ensemble_size+2]/np.sqrt(ensemble_size)
     

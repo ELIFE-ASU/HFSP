@@ -5,7 +5,6 @@ from scipy import optimize
 import networkx as nx
 import pandas as pd
 import itertools 
-import altair as alt # no need
 
 
 # Load data from the respective csv and construct a static graph/network of plant tissue with the state 'state'
@@ -15,7 +14,7 @@ def create_tissue(csv_path,edge_state):
     csv_df = pd.read_csv(csv_path) 
     
     g = nx.Graph()
-    node_list = list(sorted(set(csv_df.iloc[:,0])))
+    node_list = list(set(csv_df.iloc[:,0]))
     g.add_nodes_from(node_list)
     for i in range(len(csv_df)):
         g.add_edge(csv_df.iloc[i,0],csv_df.iloc[i,1])
@@ -29,8 +28,9 @@ def create_tissue(csv_path,edge_state):
     return g
 
 def plt_tissue(g, edge_state, save_with_name):
-    plt.figure(figsize = (12,12))
-    pos = nx.kamada_kawai_layout(g, dim = 3)
+    plt.figure(figsize = (15,15))
+    pos = nx.kamada_kawai_layout(g)
+    # pos = nx.fruchterman_reingold_layout(g)
     color_list_nodes = []
     for x in g.nodes():
         if g.nodes[x]["state"] == 0:
@@ -38,7 +38,7 @@ def plt_tissue(g, edge_state, save_with_name):
         if g.nodes[x]["state"] == 1:
             color_list_nodes.append("white")
             
-    nx.draw_networkx_nodes(g, pos, node_color= color_list_nodes, edgecolors="black")
+    nx.draw_networkx_nodes(g, pos, node_color= color_list_nodes, edgecolors="black", node_size = 40)
     if edge_state == False:
         nx.draw_networkx_edges(g,pos,edge_color = 'green', width=2)
         
@@ -138,7 +138,7 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
                 for j in range(len(Q)):
                     if g.edges[Q[j]]["edge_state"] == 1:
                         active_edges.append(Q[j]) # This way, we create a list of active edges of a given node 'x'
-                N2 = [k[1] for k in active_edges] # list of 'nodes' with active edges
+                N2 = [k[1] for k in active_edges] # Leist of 'nodes' with active edges
                 
                 N1 = []
                 P = list(g.neighbors(x)) 
@@ -189,6 +189,16 @@ def update_spontaneous(g, jump_state):
         g.nodes[list(g.nodes())[i]]["state"] = jump_state[i]
     for j in range(len(g.edges())):
         g.edges[list(g.edges())[j]]["edge_state"] = jump_state[len(g.nodes()) + j]
+
+    
+def update_individual_node(g, node, state):
+    g.nodes[node]["state"] = state
+    return g
+
+    
+def update_individual_edge(g, edge, state):
+    g.edges[edge]["edge_state"] = state
+    return g
         
 
 
@@ -222,7 +232,7 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rul
         avg_exp_edges.append(np.sum(trajectory[j,(len(g.nodes())):])*100/len(trajectory[0,(len(g.nodes())):]))
     edge_exp_percent = np.array(avg_exp_edges)
     
-    trajectory_df = pd.DataFrame(trajectory, columns = ['node{}'.format(x) for x in g.nodes()] + ['edge{}'.format(x) for x in g.edges()])
+    trajectory_df = pd.DataFrame(trajectory, columns = ['{}'.format(x) for x in g.nodes()] + ['{}'.format(x) for x in g.edges()])
     trajectory_df.insert(0, "time", time_array)
     trajectory_df.insert(1, "% of active nodes", node_exp_percent)
     trajectory_df.insert(2, "% of active edges", edge_exp_percent)

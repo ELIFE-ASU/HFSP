@@ -5,7 +5,6 @@ from scipy import optimize
 import networkx as nx
 import pandas as pd
 import itertools 
-import altair as alt # no need
 
 
 # Load data from the respective csv and construct a static graph/network of plant tissue with the state 'state'
@@ -222,7 +221,7 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rul
         avg_exp_edges.append(np.sum(trajectory[j,(len(g.nodes())):])*100/len(trajectory[0,(len(g.nodes())):]))
     edge_exp_percent = np.array(avg_exp_edges)
     
-    trajectory_df = pd.DataFrame(trajectory, columns = ['node{}'.format(x) for x in g.nodes()] + ['edge{}'.format(x) for x in g.edges()])
+    trajectory_df = pd.DataFrame(trajectory, columns = ['{}'.format(x) for x in g.nodes()] + ['{}'.format(x) for x in g.edges()])
     trajectory_df.insert(0, "time", time_array)
     trajectory_df.insert(1, "% of active nodes", node_exp_percent)
     trajectory_df.insert(2, "% of active edges", edge_exp_percent)

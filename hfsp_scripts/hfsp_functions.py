@@ -164,7 +164,7 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
     return g  
 
 def update_rule_edges(g, temp, p_edge, rule_code): 
-    # If rule code is 0 then it means edge dynamics is turned OFF
+    # If rule code is 'None' then it means edge dynamics is turned OFF
     if rule_code == 0: # decoupled PD and genetics
         for x in list(g.edges()):
             if temp == 0 and g.edges[x]["edge_state"] == 0:

@@ -7,7 +7,9 @@ import pandas as pd
 import itertools 
 
 
-# Load data from the respective csv and construct a static graph/network of plant tissue with the state 'state'
+# Load data from the respective csv (enter in csv_path).
+# edge_state is a boolean variable. If it is False, no state-attribute would be assingned to the edges. If it is True, Initial state - 0 will be assingned to all edges.
+
 
 def create_tissue(csv_path,edge_state):
     
@@ -43,16 +45,6 @@ def plt_tissue(g, edge_state, save_with_name):
         nx.draw_networkx_edges(g,pos,edge_color = 'green', width=2)
         
     if edge_state == True:
-        '''        
-        all_weights = []
-        for (node1,node2,data) in g.edges(data=True):
-            all_weights.append(data["weight"])
-        unique_weights = list(set(all_weights))
-
-        for w in unique_weights:
-            weighted_edges = [(node1,node2) for (node1,node2,edge_attr) in g.edges(data=True) if edge_attr['weight']==w]
-            nx.draw_networkx_edges(g,pos,edge_color = 'blue',edgelist=weighted_edges,width=0.3*w)
-        '''
         color_list_edges = []
         for x in g.edges():
             if g.edges[x]["edge_state"] == 0:
@@ -68,11 +60,10 @@ def plt_tissue(g, edge_state, save_with_name):
     plt.show()
 
 # Update the nodes (gene expression) according the following function;
-
 # rule_code = [0,m]: n1/n0 ; All edges are assumed to be open (green)
 # rule_code = [1,m]: n_12/n0 > m
 # rule_code = [2,m]: n_12/n2 > m
-# rule_code = [3,c]: n_12 > c
+
 
 def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code): 
     for x in list(g.nodes()):
@@ -130,26 +121,6 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
                     n = len(N12)/len(N2)
                     if n >= rule_code[1]:
                         g.nodes[x]["state"] = 1
-            
-            # Code for Majority Rule 3
-            if c1 == 1 and rule_code[0] == 3:
-                active_edges = [] 
-                Q = list(g.edges([x])) 
-                for j in range(len(Q)):
-                    if g.edges[Q[j]]["edge_state"] == 1:
-                        active_edges.append(Q[j]) # This way, we create a list of active edges of a given node 'x'
-                N2 = [k[1] for k in active_edges] # Leist of 'nodes' with active edges
-                
-                N1 = []
-                P = list(g.neighbors(x)) 
-                for i in range(len(P)):
-                    if g.nodes[P[i]]["state"] == 1:
-                        N1.append(P[i])
-                N12 = list(set(N2) & set(N1)) # nodes with active edges AND active nodes!
-
-                n = len(N12)
-                if n >= rule_code[1]:
-                    g.nodes[x]["state"] = 1
                     
         if temp == 1 and g.nodes[x]["state"] == 1:
             c2 = np.random.choice([0,1], p = [p_warm,1-p_warm])
@@ -163,23 +134,31 @@ def update_rule_nodes(g, temp, p_decay, p_cold, p_warm, rule_code):
                     g.nodes[x]["state"] = 0
     return g  
 
-def update_rule_edges(g, temp, p_edge, rule_code): 
+def update_rule_edges(g, temp, p_edge_cold, p_edge_warm, rule_code): 
     # If rule code is 'None' then it means edge dynamics is turned OFF
+    
     if rule_code == 0: # decoupled PD and genetics
         for x in list(g.edges()):
             if temp == 0 and g.edges[x]["edge_state"] == 0:
-                c0 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edge, 1-p_edge])
-                if c0 == 'PD_open':        
-                    g.edges[x]["edge_state"] = 1 # Very cool! This should work.
+                c0 = np.random.choice([0,1], p = [p_edge_cold, 1-p_edge_cold])
+                if c0 == 0:        
+                    g.edges[x]["edge_state"] = 1
 
-    if rule_code == 1: # Coupled PD and genetics
-        active_nodes = [x for x in g.nodes() if g.nodes[x]["state"] == 1]
-        potentially_active_edges = list(g.edges(active_nodes)) # check if there are any repetitions in this set!
-        for y in potentially_active_edges:
-            if temp == 0 and g.edges[y]["edge_state"] == 0:
-                c1 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edge, 1-p_edge])
-                if c1 == 'PD_open':        
-                    g.edges[y]["edge_state"] = 1
+        for x in list(g.edges()):
+            if temp == 1 and g.edges[x]["edge_state"] == 1:
+                c1 = np.random.choice([0,1], p = [p_edge_warm, 1-p_edge_warm])
+                if c1 == 0:        
+                    g.edges[x]["edge_state"] = 0
+
+    
+    # if rule_code == 1: # Coupled PD and genetics
+    #     active_nodes = [x for x in g.nodes() if g.nodes[x]["state"] == 1]
+    #     potentially_active_edges = list(g.edges(active_nodes)) # check if there are any repetitions in this set!
+    #     for y in potentially_active_edges:
+    #         if temp == 0 and g.edges[y]["edge_state"] == 0:
+    #             c1 = np.random.choice(['PD_open', 'PD_closed'], p = [p_edge, 1-p_edge])
+    #             if c1 == 'PD_open':        
+    #                 g.edges[y]["edge_state"] = 1
             
     return g       
     
@@ -202,7 +181,7 @@ def update_individual_edge(g, edge, state):
         
 
 
-def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge): # temp schedule is the list of cold (0), warm(1) schedules 
+def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge_cold, p_edge_warm, rule_code_node, rule_code_edge): # temp schedule is the list of cold (0), warm(1) schedules 
     
     temp_array = np.array([],dtype = int)         
     for i in range(len(temp_sch)):
@@ -218,7 +197,7 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rul
     trajectory[0] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()] + [g_0.edges[j]["edge_state"] for j in g_0.edges()])
     for k in range(len(temp_array)):
         g_0 = update_rule_nodes(g_0, temp_array[k], p_decay, p_cold, p_warm, rule_code_node)
-        g_0 = update_rule_edges(g_0, temp_array[k], p_edge, rule_code_edge)
+        g_0 = update_rule_edges(g_0, temp_array[k], p_edge_cold, p_edge_warm, rule_code_edge)
         trajectory[k+1] = np.array([g_0.nodes[j]["state"] for j in g_0.nodes()] + [g_0.edges[j]["edge_state"] for j in g_0.edges()])
         
     time_array = np.arange(len(temp_array)+1)
@@ -239,12 +218,12 @@ def trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rul
     return trajectory_df
     
 
-def ensemble(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge, ensemble_size, jump_state):
-    ensemble_data = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge).iloc[:,[0,1]]
+def ensemble(g, temp_sch, p_decay, p_cold, p_warm, p_edge_cold, p_edge_warm, rule_code_node, rule_code_edge, ensemble_size, jump_state):
+    ensemble_data = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge_cold, p_edge_warm, rule_code_node, rule_code_edge).iloc[:,[0,1]]
     ensemble_data.rename(columns={"% of active nodes":"sim_1"} ,inplace=True)
     for i in range(ensemble_size-1):
         update_spontaneous(g, jump_state)
-        traj = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_code_edge).iloc[:,1]
+        traj = trajectory(g, temp_sch, p_decay, p_cold, p_warm, p_edge_cold, p_edge_warm, rule_code_node, rule_code_edge).iloc[:,1]
         ensemble_data.insert(i+2,"sim_{}".format(i+2), traj)
     
     ensemble_data['mean'] = ensemble_data.iloc[:,1:ensemble_size+1].mean(axis=1)
@@ -255,27 +234,5 @@ def ensemble(g, temp_sch, p_decay, p_cold, p_warm, p_edge, rule_code_node, rule_
    
     return ensemble_data
     
-def percentGA_plt(ensemble_data, color):
-    line = alt.Chart(ensemble_data).mark_line(color = color).encode(
-    x=alt.X('time', title='time [1 unit = 1 hour]'),
-    y=alt.Y('mean', title= '% of cells with GA20OX-1 expressed')
-    )
-
-    band = alt.Chart(ensemble_data).mark_area(
-    opacity=0.4, color=color).encode(
-    x=alt.X('time', title='time [1 unit = 1 hour]'),
-    y='lower',
-    y2='upper'
-    )
-    
-    return (line + band).interactive() 
-
-def std_plt(ensemble_data):
-    line2 = alt.Chart(ensemble_data).mark_line().encode(
-    x=alt.X('time', title='time [1 unit = 1 hour]'),
-    y=alt.Y('std', title= 'Standard Deviation')
-    )
-    
-    return line2.interactive()
     
 
